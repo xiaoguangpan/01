@@ -29,6 +29,7 @@ import com.example.locationsimulator.util.CoordinateConverter
 import com.example.locationsimulator.util.MockLocationManager
 import kotlinx.coroutines.launch
 import android.util.Log
+import com.example.locationsimulator.BuildConfig
 import android.content.Context
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -54,7 +55,7 @@ class MainViewModel : ViewModel() {
     fun onAddressChange(newAddress: String) { address = newAddress }
     fun onLatitudeChange(newLat: String) { latitude = newLat }
     fun onLongitudeChange(newLng: String) { longitude = newLng }
-    fun setInputMode(mode: InputMode) { inputMode = mode }
+    fun updateInputMode(mode: InputMode) { inputMode = mode }
 
     fun startSimulation(context: Context) {
         statusMessage = "正在处理..."
@@ -102,6 +103,9 @@ class MainViewModel : ViewModel() {
         MockLocationManager.stop(context)
         isSimulating = false
         statusMessage = null
+        address = ""
+        latitude = ""
+        longitude = ""
     }
 }
 
@@ -252,8 +256,8 @@ fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
             contentColor = Color.White,
             modifier = Modifier.clip(RoundedCornerShape(8.dp))
         ) {
-            Tab(selected = isAddressMode, onClick = { viewModel.setInputMode(InputMode.ADDRESS) }, text = { Text("地址输入") })
-            Tab(selected = !isAddressMode, onClick = { viewModel.setInputMode(InputMode.COORDINATE) }, text = { Text("坐标输入") })
+            Tab(selected = isAddressMode, onClick = { viewModel.updateInputMode(InputMode.ADDRESS) }, text = { Text("地址输入") })
+            Tab(selected = !isAddressMode, onClick = { viewModel.updateInputMode(InputMode.COORDINATE) }, text = { Text("坐标输入") })
         }
         Spacer(modifier = Modifier.height(16.dp))
 
