@@ -9,10 +9,16 @@
         tools:ignore="ProtectedPermissions" />
 
     <application
+        android:name=".MainApplication"
         android:allowBackup="true"
         android:label="Location Simulator"
         android:supportsRtl="true"
         tools:targetApi="31">
+
+        <meta-data
+            android:name="com.baidu.lbsapi.API_KEY"
+            android:value="${BAIDU_MAP_AK}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -21,6 +21,7 @@ android {
         // 从构建环境中读取API Key
         buildConfigField("String", "BAIDU_MAP_AK", "\"${System.getenv("BAIDU_MAP_AK") ?: ""}\"")
         buildConfigField("String", "BAIDU_MAP_SK", "\"${System.getenv("BAIDU_MAP_SK") ?: ""}\"")
+        manifestPlaceholders["BAIDU_MAP_AK"] = System.getenv("BAIDU_MAP_AK") ?: ""
     }
 
     buildTypes {
@@ -71,6 +72,11 @@ dependencies {
     // Networking with Retrofit
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+
+    // Baidu Maps SDK
+    implementation("com.baidu.mapapi:map-sdk:7.5.0")
+    implementation ("com.baidu.mapapi:base-sdk:7.5.0")
+    implementation ("com.baidu.mapapi:search-sdk:7.5.0")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

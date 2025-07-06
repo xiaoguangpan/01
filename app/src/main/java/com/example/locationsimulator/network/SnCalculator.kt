@@ -5,21 +5,27 @@ import java.security.MessageDigest
 
 object SnCalculator {
 
-    fun calculateSn(ak: String, sk: String, address: String): String {
+    fun calculateSn(ak: String, sk: String, query: String, region: String): String {
         // 使用 sortedMapOf 保证参数按key的字母顺序排序
         val params = sortedMapOf<String, String>()
-        params["address"] = address
+        params["query"] = query
+        params["region"] = region
         params["ak"] = ak
-        
+        // city_limit is not part of SN calculation according to some docs, but let's be safe
+        // It's a boolean, but the API expects a string. Let's add it.
+        params["city_limit"] = "true"
+        params["output"] = "json"
+
+
         // 构造待签名的字符串
         val queryString = toQueryString(params)
-        
+
         // 拼接sk
-        val stringToSign = "/geocoding/v3/?" + queryString + sk
-        
+        val stringToSign = "/place/v3/suggestion?" + queryString + sk
+
         // URL编码
         val encodedString = URLEncoder.encode(stringToSign, "UTF-8")
-        
+
         // MD5加密
         return md5(encodedString)
     }

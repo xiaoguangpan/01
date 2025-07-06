@@ -28,6 +28,9 @@ jobs:
 
     - name: Build APK
       run: gradle assembleDebug
+      env:
+        BAIDU_MAP_AK: ${{ secrets.BAIDU_MAP_AK }}
+        BAIDU_MAP_SK: ${{ secrets.BAIDU_MAP_SK }}
 
     - name: Upload APK
       uses: actions/upload-artifact@v4

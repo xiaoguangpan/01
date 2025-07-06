@@ -1,129 +1,177 @@
 package com.example.locationsimulator
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.locationsimulator.ui.theme.LocationSimulatorTheme
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.baidu.mapapi.map.*
+import com.baidu.mapapi.model.LatLng
+import com.example.locationsimulator.network.BaiduApiService
 import com.example.locationsimulator.network.RetrofitClient
 import com.example.locationsimulator.network.SnCalculator
+import com.example.locationsimulator.network.SuggestionResult
+import com.example.locationsimulator.ui.theme.LocationSimulatorTheme
 import com.example.locationsimulator.util.CoordinateConverter
 import com.example.locationsimulator.util.MockLocationManager
 import kotlinx.coroutines.launch
-import android.util.Log
-import com.example.locationsimulator.BuildConfig
-import android.content.Context
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
 
-enum class InputMode {
-    ADDRESS, COORDINATE
-}
+// region ViewModel
+enum class InputMode { ADDRESS, COORDINATE }
 
 class MainViewModel : ViewModel() {
     var isSimulating by mutableStateOf(false)
         private set
     var inputMode by mutableStateOf(InputMode.ADDRESS)
         private set
-    var address by mutableStateOf("")
+
+    // Address Mode State
+    var addressQuery by mutableStateOf("")
         private set
-    var latitude by mutableStateOf("")
+    var suggestions by mutableStateOf<List<SuggestionResult>>(emptyList())
         private set
-    var longitude by mutableStateOf("")
+    var selectedSuggestion by mutableStateOf<SuggestionResult?>(null)
         private set
+
+    // Coordinate Mode State
+    var coordinateInput by mutableStateOf("")
+        private set
+
     var statusMessage by mutableStateOf<String?>(null)
         private set
 
-    fun onAddressChange(newAddress: String) { address = newAddress }
-    fun onLatitudeChange(newLat: String) { latitude = newLat }
-    fun onLongitudeChange(newLng: String) { longitude = newLng }
-    fun updateInputMode(mode: InputMode) { inputMode = mode }
+    fun onAddressQueryChange(query: String) {
+        addressQuery = query
+        selectedSuggestion = null // Clear selection when user types
+        if (query.length > 1) {
+            fetchSuggestions(query)
+        } else {
+            suggestions = emptyList()
+        }
+    }
+
+    fun onCoordinateInputChange(input: String) {
+        coordinateInput = input
+    }
+
+    fun selectSuggestion(suggestion: SuggestionResult) {
+        selectedSuggestion = suggestion
+        addressQuery = suggestion.name
+        suggestions = emptyList()
+    }
+
+    fun setInputMode(mode: InputMode) {
+        inputMode = mode
+        statusMessage = null
+    }
+
+    private fun fetchSuggestions(query: String) {
+        viewModelScope.launch {
+            try {
+                val ak = BuildConfig.BAIDU_MAP_AK
+                val sk = BuildConfig.BAIDU_MAP_SK
+                // A common practice is to use a default region, e.g., "全国" (nationwide)
+                val region = "全国"
+                val sn = SnCalculator.calculateSn(ak, sk, query, region)
+                val response = RetrofitClient.instance.getSuggestions(query, region, ak, sn)
+                if (response.status == 0 && response.result != null) {
+                    suggestions = response.result
+                } else {
+                    Log.e("ViewModel", "Suggestion API Error: ${response.message}")
+                }
+            } catch (e: Exception) {
+                Log.e("ViewModel", "Suggestion Network Exception", e)
+            }
+        }
+    }
 
     fun startSimulation(context: Context) {
         statusMessage = "正在处理..."
-        viewModelScope.launch {
-            if (inputMode == InputMode.ADDRESS) {
-                if (address.isBlank()) {
-                    statusMessage = "地址不能为空"
-                    return@launch
-                }
-                try {
-                    val ak = BuildConfig.BAIDU_MAP_AK
-                    val sk = BuildConfig.BAIDU_MAP_SK
-                    val sn = SnCalculator.calculateSn(ak, sk, address)
-                    val response = RetrofitClient.instance.geocode(address, ak, sn)
-                    if (response.status == 0 && response.result != null) {
-                        val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(response.result.location.lng, response.result.location.lat)
-                        MockLocationManager.start(context, latWgs, lngWgs)
-                        isSimulating = true
-                        statusMessage = "模拟成功: ${response.result.location.lat}, ${response.result.location.lng}"
-                        Log.d("MainViewModel", "Geocoding Success, Mocking at: $latWgs, $lngWgs")
-                    } else {
-                        statusMessage = "地址解析失败: ${response.status}"
-                        Log.e("MainViewModel", "Geocoding Error: status=${response.status}")
-                    }
-                } catch (e: Exception) {
-                    statusMessage = "网络异常"
-                    Log.e("MainViewModel", "Network Exception", e)
-                }
-            } else { // COORDINATE mode
-                val lat = latitude.toDoubleOrNull()
-                val lng = longitude.toDoubleOrNull()
-                if (lat == null || lng == null) {
-                    statusMessage = "经纬度格式不正确"
-                    return@launch
-                }
-                val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(lng, lat)
-                MockLocationManager.start(context, latWgs, lngWgs)
-                isSimulating = true
-                statusMessage = "模拟成功: $lat, $lng"
+        var targetLat: Double? = null
+        var targetLng: Double? = null
+        var displayAddress = ""
+
+        if (inputMode == InputMode.ADDRESS) {
+            val location = selectedSuggestion?.location
+            if (location == null) {
+                statusMessage = "请先从列表中选择一个有效的地址"
+                return
             }
+            targetLat = location.lat
+            targetLng = location.lng
+            displayAddress = selectedSuggestion?.name ?: "未知地址"
+        } else { // COORDINATE mode
+            val parts = coordinateInput.split(',', '，').map { it.trim() }
+            if (parts.size != 2) {
+                statusMessage = "坐标格式不正确，请使用 '经度,纬度' 格式"
+                return
+            }
+            targetLng = parts[0].toDoubleOrNull()
+            targetLat = parts[1].toDoubleOrNull()
+            if (targetLat == null || targetLng == null) {
+                statusMessage = "经纬度必须是数字"
+                return
+            }
+            displayAddress = coordinateInput
         }
+
+        val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(targetLng, targetLat)
+        MockLocationManager.start(context, latWgs, lngWgs)
+        isSimulating = true
+        statusMessage = "模拟成功: $displayAddress"
     }
 
     fun stopSimulation(context: Context) {
         MockLocationManager.stop(context)
         isSimulating = false
         statusMessage = null
-        address = ""
-        latitude = ""
-        longitude = ""
+        addressQuery = ""
+        coordinateInput = ""
+        selectedSuggestion = null
+        suggestions = emptyList()
     }
 }
+// endregion
 
-
+// region UI Composables
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             LocationSimulatorTheme {
                 val viewModel: MainViewModel = viewModel()
-                val context = this
                 if (viewModel.isSimulating) {
                     SimulatingScreen(
-                        address = if (viewModel.inputMode == InputMode.ADDRESS) viewModel.address else "${viewModel.latitude}, ${viewModel.longitude}",
-                        onStopClick = { viewModel.stopSimulation(context) }
+                        address = if (viewModel.inputMode == InputMode.ADDRESS) viewModel.selectedSuggestion?.name ?: "未知" else viewModel.coordinateInput,
+                        onStopClick = { viewModel.stopSimulation(this) }
                     )
                 } else {
-                    MainScreen(viewModel = viewModel, onStartClick = { viewModel.startSimulation(context) })
+                    MainScreen(viewModel = viewModel)
                 }
             }
         }
@@ -131,7 +179,8 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainScreen(viewModel: MainViewModel, onStartClick: () -> Unit) {
+fun MainScreen(viewModel: MainViewModel) {
+    val context = LocalContext.current
     Box(modifier = Modifier
         .fillMaxSize()
         .background(Color(0xFF1F2937))) {
@@ -141,19 +190,19 @@ fun MainScreen(viewModel: MainViewModel, onStartClick: () -> Unit) {
                 .padding(24.dp)
         ) {
             Header()
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
             StatusCheck()
-            Spacer(modifier = Modifier.weight(1f))
-            Controls(viewModel, onStartClick)
+            Spacer(Modifier.height(24.dp))
+            Controls(viewModel, onStartClick = { viewModel.startSimulation(context) })
         }
     }
 }
 
 @Composable
 fun SimulatingScreen(address: String, onStopClick: () -> Unit) {
-     Box(modifier = Modifier
-         .fillMaxSize()
-         .background(Color(0xFF1F2937))) {
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .background(Color(0xFF1F2937))) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -161,22 +210,9 @@ fun SimulatingScreen(address: String, onStopClick: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Header()
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
             SimulatingStatus(address)
-            
-            // Map placeholder area
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("地图预览区域", color = Color.Gray)
-            }
-
+            BaiduMapView(modifier = Modifier.weight(1f).padding(vertical = 16.dp), isSimulating = true)
             Button(
                 onClick = onStopClick,
                 shape = RoundedCornerShape(16.dp),
@@ -191,7 +227,6 @@ fun SimulatingScreen(address: String, onStopClick: () -> Unit) {
     }
 }
 
-
 @Composable
 fun Header() {
     Text(
@@ -205,33 +240,43 @@ fun Header() {
 
 @Composable
 fun StatusCheck() {
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
             .background(Color.White.copy(alpha = 0.1f))
             .padding(16.dp)
     ) {
-        StatusRow("开发者模式", "已开启", Color(0xFF4CAF50))
+        StatusRow("开发者模式", "已开启", Color(0xFF4CAF50), onClick = {
+            context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+        })
         Divider(color = Color.White.copy(alpha = 0.2f), thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
-        StatusRow("模拟定位应用", "未设置", Color(0xFFFB8C00))
+        StatusRow("模拟定位应用", "未设置", Color(0xFFFB8C00), onClick = {
+            context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+        })
     }
 }
 
 @Composable
-fun StatusRow(title: String, status: String, statusColor: Color) {
+fun StatusRow(title: String, status: String, statusColor: Color, onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(title, color = Color.White, fontSize = 16.sp)
-        Text(status, color = statusColor, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(status, color = statusColor, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            // Icon for navigation hint can be added here
+        }
     }
 }
 
 @Composable
 fun SimulatingStatus(address: String) {
-     Column(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
@@ -240,11 +285,10 @@ fun SimulatingStatus(address: String) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("正在模拟位置", color = Color.Gray, fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(Modifier.height(4.dp))
         Text(address, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
-
 
 @Composable
 fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
@@ -256,49 +300,33 @@ fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
             contentColor = Color.White,
             modifier = Modifier.clip(RoundedCornerShape(8.dp))
         ) {
-            Tab(selected = isAddressMode, onClick = { viewModel.updateInputMode(InputMode.ADDRESS) }, text = { Text("地址输入") })
-            Tab(selected = !isAddressMode, onClick = { viewModel.updateInputMode(InputMode.COORDINATE) }, text = { Text("坐标输入") })
+            Tab(selected = isAddressMode, onClick = { viewModel.setInputMode(InputMode.ADDRESS) }, text = { Text("地址输入") })
+            Tab(selected = !isAddressMode, onClick = { viewModel.setInputMode(InputMode.COORDINATE) }, text = { Text("坐标输入") })
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(Modifier.height(16.dp))
 
         if (isAddressMode) {
+            AddressInputWithSuggestions(viewModel)
+        } else {
             OutlinedTextField(
-                value = viewModel.address,
-                onValueChange = { viewModel.onAddressChange(it) },
-                label = { Text("输入目标地址") },
-                placeholder = { Text("例如：北京市海淀区上地十街10号") },
+                value = viewModel.coordinateInput,
+                onValueChange = { viewModel.onCoordinateInputChange(it) },
+                label = { Text("经度,纬度") },
+                placeholder = { Text("例如: 116.404,39.915") },
                 modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 colors = textFieldColors()
             )
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = viewModel.latitude,
-                    onValueChange = { viewModel.onLatitudeChange(it) },
-                    label = { Text("纬度 (Lat)") },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    colors = textFieldColors()
-                )
-                OutlinedTextField(
-                    value = viewModel.longitude,
-                    onValueChange = { viewModel.onLongitudeChange(it) },
-                    label = { Text("经度 (Lng)") },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    colors = textFieldColors()
-                )
-            }
         }
 
         viewModel.statusMessage?.let {
             Text(it, color = Color.Yellow, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(Modifier.height(16.dp))
         Button(
             onClick = onStartClick,
-            enabled = (isAddressMode && viewModel.address.isNotBlank()) || (!isAddressMode && viewModel.latitude.isNotBlank() && viewModel.longitude.isNotBlank()),
+            enabled = (isAddressMode && viewModel.selectedSuggestion != null) || (!isAddressMode && viewModel.coordinateInput.isNotBlank()),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2)),
             modifier = Modifier
@@ -310,7 +338,54 @@ fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
     }
 }
 
-@Preview(showBackground = true)
+@Composable
+fun AddressInputWithSuggestions(viewModel: MainViewModel) {
+    Box {
+        OutlinedTextField(
+            value = viewModel.addressQuery,
+            onValueChange = { viewModel.onAddressQueryChange(it) },
+            label = { Text("输入目标地址") },
+            placeholder = { Text("例如：北京天安门") },
+            modifier = Modifier.fillMaxWidth(),
+            colors = textFieldColors()
+        )
+        if (viewModel.suggestions.isNotEmpty()) {
+            LazyColumn(
+                modifier = Modifier
+                    .padding(top = 64.dp)
+                    .fillMaxWidth()
+                    .background(Color(0xFF2D3748), shape = RoundedCornerShape(8.dp))
+                    .heightIn(max = 200.dp)
+            ) {
+                items(viewModel.suggestions) { suggestion ->
+                    Text(
+                        text = "${suggestion.name} (${suggestion.city}${suggestion.district})",
+                        color = Color.White,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.selectSuggestion(suggestion) }
+                            .padding(16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean) {
+    val context = LocalContext.current
+    val mapView = remember { MapView(context) }
+
+    AndroidView(
+        factory = { mapView },
+        modifier = modifier.clip(RoundedCornerShape(16.dp))
+    ) { view ->
+        view.map.isMyLocationEnabled = true
+        // Further map configuration can be done here
+    }
+}
+
 @Composable
 private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = Color.White,
@@ -326,14 +401,7 @@ private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
 @Composable
 fun DefaultPreview() {
     LocationSimulatorTheme {
-        MainScreen(viewModel = MainViewModel(), onStartClick = {})
+        MainScreen(viewModel = MainViewModel())
     }
 }
-
-@Preview(showBackground = true)
-@Composable
-fun SimulatingPreview() {
-    LocationSimulatorTheme {
-        SimulatingScreen(address = "北京市海淀区上地十街10号", onStopClick = {})
-    }
-}
+// endregion
