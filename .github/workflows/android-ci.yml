@@ -20,6 +20,13 @@ jobs:
         distribution: 'temurin'
         cache: 'gradle'
 
+    - name: Generate Debug Keystore & Print SHA1
+      run: |
+        keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug, O=Android, C=US" -storepass android -keypass android
+        echo "================= BAIDU MAPS SHA1 FINGERPRINT =================="
+        keytool -exportcert -alias androiddebugkey -keystore debug.keystore -storepass android | openssl sha1 -binary | openssl base64
+        echo "================================================================="
+
     - name: Build with Gradle
       run: gradle build
       env:
