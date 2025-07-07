@@ -78,6 +78,18 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     var selectedSuggestion by mutableStateOf<SuggestionItem?>(null)
         private set
 
+    // 当前搜索城市
+    var currentSearchCity by mutableStateOf("北京")
+        private set
+
+    // 常用城市列表
+    val popularCities = listOf(
+        "北京", "上海", "广州", "深圳", "杭州", "南京", "武汉", "成都",
+        "重庆", "天津", "西安", "苏州", "长沙", "沈阳", "青岛", "郑州",
+        "大连", "东莞", "宁波", "厦门", "福州", "无锡", "合肥", "昆明",
+        "哈尔滨", "济南", "佛山", "长春", "温州", "石家庄", "南宁", "常州"
+    )
+
     // Coordinate Mode State
     var coordinateInput by mutableStateOf("")
         private set
@@ -169,12 +181,29 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         addressQuery = query
         selectedSuggestion = null // Clear selection when user types
         addDebugMessage("地址输入变化: '$query'")
+
         if (query.length > 1) {
+            // 智能检测城市
+            val detectedCity = detectCityFromQuery(query)
+            if (detectedCity != null && detectedCity != currentSearchCity) {
+                currentSearchCity = detectedCity
+                addDebugMessage("🏙️ 智能检测到城市: $detectedCity")
+            }
+
             addDebugMessage("开始搜索地址建议...")
             fetchSuggestions(query)
         } else {
             suggestions = emptyList()
             addDebugMessage("清空地址建议列表")
+        }
+    }
+
+    fun updateSearchCity(city: String) {
+        currentSearchCity = city
+        addDebugMessage("🏙️ 切换搜索城市: $city")
+        // 如果有当前查询，重新搜索
+        if (addressQuery.isNotEmpty()) {
+            fetchSuggestions(addressQuery)
         }
     }
 
@@ -413,29 +442,41 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                     BDLocation.TypeGpsLocation -> {
                         // GPS定位成功
                         val address = location.addrStr ?: "未知地址"
+                        val city = location.city ?: "北京"
                         addressQuery = address
                         currentLatitude = location.latitude
                         currentLongitude = location.longitude
+                        // 更新搜索城市为当前定位城市
+                        currentSearchCity = city.removeSuffix("市")
                         statusMessage = "定位成功：$address"
-                        Log.d("LocationViewModel", "GPS location: $address")
+                        addDebugMessage("🏙️ 定位城市已更新: ${currentSearchCity}")
+                        Log.d("LocationViewModel", "GPS location: $address, city: $city")
                     }
                     BDLocation.TypeNetWorkLocation -> {
                         // 网络定位成功
                         val address = location.addrStr ?: "未知地址"
+                        val city = location.city ?: "北京"
                         addressQuery = address
                         currentLatitude = location.latitude
                         currentLongitude = location.longitude
+                        // 更新搜索城市为当前定位城市
+                        currentSearchCity = city.removeSuffix("市")
                         statusMessage = "定位成功：$address"
-                        Log.d("LocationViewModel", "Network location: $address")
+                        addDebugMessage("🏙️ 定位城市已更新: ${currentSearchCity}")
+                        Log.d("LocationViewModel", "Network location: $address, city: $city")
                     }
                     BDLocation.TypeOffLineLocation -> {
                         // 离线定位成功
                         val address = location.addrStr ?: "未知地址"
+                        val city = location.city ?: "北京"
                         addressQuery = address
                         currentLatitude = location.latitude
                         currentLongitude = location.longitude
+                        // 更新搜索城市为当前定位城市
+                        currentSearchCity = city.removeSuffix("市")
                         statusMessage = "离线定位成功：$address"
-                        Log.d("LocationViewModel", "Offline location: $address")
+                        addDebugMessage("🏙️ 定位城市已更新: ${currentSearchCity}")
+                        Log.d("LocationViewModel", "Offline location: $address, city: $city")
                     }
                     else -> {
                         // 定位失败
@@ -488,15 +529,51 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         }
     }
 
+    // 智能检测查询中的城市信息
+    private fun detectCityFromQuery(query: String): String? {
+        val trimmedQuery = query.trim()
+
+        // 检查是否以城市名开头
+        for (city in popularCities) {
+            if (trimmedQuery.startsWith(city)) {
+                return city
+            }
+        }
+
+        // 检查是否包含"市"字的城市
+        val cityPattern = Regex("([\\u4e00-\\u9fa5]+市)")
+        val match = cityPattern.find(trimmedQuery)
+        if (match != null) {
+            val cityWithShi = match.value
+            val cityName = cityWithShi.removeSuffix("市")
+            // 检查是否在常用城市列表中
+            if (popularCities.contains(cityName)) {
+                return cityName
+            }
+            // 如果不在列表中，返回带"市"的完整名称
+            return cityWithShi
+        }
+
+        return null
+    }
+
     private fun performSuggestionSearch(query: String) {
         try {
-            // 使用最简单的搜索选项
+            // 检查查询字符串是否有效
+            if (query.isBlank()) {
+                addDebugMessage("❌ 搜索关键词为空")
+                return
+            }
+
+            // 创建搜索选项，根据百度官方文档，city为必填项
             val option = SuggestionSearchOption().apply {
-                keyword(query)
-                // 不设置城市限制，搜索全国范围
+                keyword(query.trim()) // 设置关键词并去除空格
+                city(currentSearchCity) // 使用当前选择的城市
             }
 
             addDebugMessage("📡 发送搜索请求到百度服务器...")
+            addDebugMessage("🔍 搜索关键词: '$query', 搜索城市: $currentSearchCity")
+
             mSuggestionSearch?.requestSuggestion(option)
             addDebugMessage("✅ 搜索请求已发送，等待服务器响应...")
             Log.d("LocationViewModel", "Suggestion request sent successfully for: $query")
@@ -1112,12 +1189,66 @@ fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
 
 @Composable
 fun AddressInputWithSuggestions(viewModel: MainViewModel) {
+    var showCityDropdown by remember { mutableStateOf(false) }
+
     Column {
+        // 城市选择器
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "搜索城市:",
+                color = Color.White,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+
+            Box {
+                OutlinedButton(
+                    onClick = { showCityDropdown = true },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.White
+                    ),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.foundation.BorderStroke(1.dp, Color.White).brush),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("${viewModel.currentSearchCity} ▼", fontSize = 14.sp)
+                }
+
+                DropdownMenu(
+                    expanded = showCityDropdown,
+                    onDismissRequest = { showCityDropdown = false },
+                    modifier = Modifier
+                        .background(Color(0xFF2D3748))
+                        .heightIn(max = 300.dp)
+                ) {
+                    viewModel.popularCities.forEach { city ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    city,
+                                    color = if (city == viewModel.currentSearchCity) Color.Yellow else Color.White
+                                )
+                            },
+                            onClick = {
+                                viewModel.updateSearchCity(city)
+                                showCityDropdown = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
         OutlinedTextField(
             value = viewModel.addressQuery,
             onValueChange = { viewModel.onAddressQueryChange(it) },
             label = { Text("输入目标地址") },
-            placeholder = { Text("例如：北京天安门") },
+            placeholder = { Text("例如：天安门、人民公园") },
             modifier = Modifier.fillMaxWidth(),
             colors = textFieldColors()
         )
