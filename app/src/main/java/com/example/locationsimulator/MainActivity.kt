@@ -22,6 +22,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import android.content.ClipData
 import android.content.ClipboardManager
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -88,6 +89,12 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     var isDebugExpanded by mutableStateOf(false)
         private set
 
+    var isDebugPanelVisible by mutableStateOf(true)
+        private set
+
+    private var addressTabClickCount = 0
+    private var lastAddressTabClickTime = 0L
+
     fun addDebugMessage(message: String) {
         val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
         val newMessage = "[$timestamp] $message"
@@ -97,6 +104,23 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
 
     fun toggleDebugExpanded() {
         isDebugExpanded = !isDebugExpanded
+    }
+
+    fun onAddressTabClick() {
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastAddressTabClickTime > 2000) {
+            // 如果距离上次点击超过2秒，重置计数
+            addressTabClickCount = 1
+        } else {
+            addressTabClickCount++
+        }
+        lastAddressTabClickTime = currentTime
+
+        if (addressTabClickCount >= 5) {
+            isDebugPanelVisible = !isDebugPanelVisible
+            addressTabClickCount = 0
+            addDebugMessage("🔧 调试面板${if (isDebugPanelVisible) "显示" else "隐藏"}")
+        }
     }
 
     fun clearDebugMessages() {
@@ -643,8 +667,6 @@ fun MainScreen(viewModel: MainViewModel) {
                 .fillMaxSize()
                 .padding(24.dp)
         ) {
-            Header()
-            Spacer(Modifier.height(12.dp))
 
             // 调试信息面板
             DebugPanel(viewModel)
@@ -670,8 +692,6 @@ fun SimulatingScreen(address: String, onStopClick: () -> Unit) {
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Header()
-            Spacer(Modifier.height(16.dp))
             SimulatingStatus(address)
             BaiduMapView(modifier = Modifier.weight(1f).padding(vertical = 16.dp), isSimulating = true)
             Button(
@@ -704,7 +724,7 @@ fun DebugPanel(viewModel: MainViewModel) {
     val context = LocalContext.current
     val clipboardManager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
 
-    if (viewModel.debugMessages.isNotEmpty()) {
+    if (viewModel.isDebugPanelVisible && viewModel.debugMessages.isNotEmpty()) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -728,18 +748,23 @@ fun DebugPanel(viewModel: MainViewModel) {
                         "🔧 调试信息 (${viewModel.debugMessages.size})",
                         color = Color.Yellow,
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
                     )
 
-                    Row {
+                    // 操作按钮 - 水平排列，紧凑布局
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         // 展开/收起按钮
                         TextButton(
                             onClick = { viewModel.toggleDebugExpanded() },
-                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Cyan)
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Cyan),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
                                 if (viewModel.isDebugExpanded) "收起" else "展开",
-                                fontSize = 12.sp
+                                fontSize = 11.sp
                             )
                         }
 
@@ -748,27 +773,29 @@ fun DebugPanel(viewModel: MainViewModel) {
                             onClick = {
                                 val clipData = ClipData.newPlainText("调试信息", viewModel.getDebugText())
                                 clipboardManager.setPrimaryClip(clipData)
-                                // 可以添加Toast提示
                             },
-                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Green)
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Green),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text("复制", fontSize = 12.sp)
+                            Text("复制", fontSize = 11.sp)
                         }
 
                         // 清除按钮
                         TextButton(
                             onClick = { viewModel.clearDebugMessages() },
-                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Red),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text("清除", fontSize = 12.sp)
+                            Text("清除", fontSize = 11.sp)
                         }
 
                         // 重新初始化SDK按钮
                         TextButton(
                             onClick = { viewModel.checkAndReinitSDK() },
-                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Magenta)
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Magenta),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text("重置SDK", fontSize = 12.sp)
+                            Text("重置", fontSize = 11.sp)
                         }
                     }
                 }
@@ -914,7 +941,10 @@ fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
             contentColor = Color.White,
             modifier = Modifier.clip(RoundedCornerShape(8.dp))
         ) {
-            Tab(selected = isAddressMode, onClick = { viewModel.setInputMode(InputMode.ADDRESS) }, text = { Text("地址输入") })
+            Tab(selected = isAddressMode, onClick = {
+                viewModel.setInputMode(InputMode.ADDRESS)
+                viewModel.onAddressTabClick()
+            }, text = { Text("地址输入") })
             Tab(selected = !isAddressMode, onClick = { viewModel.setInputMode(InputMode.COORDINATE) }, text = { Text("坐标输入") })
         }
         Spacer(Modifier.height(16.dp))
@@ -1015,50 +1045,48 @@ fun AddressInputWithSuggestions(viewModel: MainViewModel) {
 fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean, viewModel: MainViewModel? = null) {
     val context = LocalContext.current
     val mapView = remember { MapView(context) }
+    var isInitialized by remember { mutableStateOf(false) }
 
     AndroidView(
         factory = { mapView },
         modifier = modifier.clip(RoundedCornerShape(16.dp))
     ) { view ->
-        view.map.apply {
-            viewModel?.addDebugMessage("🗺️ 初始化百度地图...")
+        if (!isInitialized) {
+            view.map.apply {
+                // 启用定位图层
+                isMyLocationEnabled = true
 
-            // 启用定位图层
-            isMyLocationEnabled = true
-            viewModel?.addDebugMessage("✅ 定位图层已启用")
+                // 设置地图类型为卫星图（更暗的效果）
+                mapType = BaiduMap.MAP_TYPE_SATELLITE
 
-            // 设置地图类型为卫星图（更暗的效果）
-            mapType = BaiduMap.MAP_TYPE_SATELLITE
-            viewModel?.addDebugMessage("🛰️ 地图类型设置为卫星图")
+                // 获取UI设置并配置
+                val uiSettings = uiSettings
+                uiSettings.setZoomGesturesEnabled(true)
+                uiSettings.setCompassEnabled(true)
+                uiSettings.setScrollGesturesEnabled(true)
+                uiSettings.setRotateGesturesEnabled(true)
 
-            // 获取UI设置并配置
-            val uiSettings = uiSettings
-            // 启用缩放手势
-            uiSettings.setZoomGesturesEnabled(true)
-            // 启用指南针
-            uiSettings.setCompassEnabled(true)
-            // 启用平移手势
-            uiSettings.setScrollGesturesEnabled(true)
-            // 启用旋转手势
-            uiSettings.setRotateGesturesEnabled(true)
-            viewModel?.addDebugMessage("✅ 地图手势控制已配置")
+                // 隐藏百度logo
+                try {
+                    view.showZoomControls(false)
+                } catch (e: Exception) {
+                    // 忽略错误
+                }
 
-            // 隐藏百度logo（如果可能）
-            try {
-                view.showZoomControls(false)
-                viewModel?.addDebugMessage("✅ 缩放控件已隐藏")
-            } catch (e: Exception) {
-                viewModel?.addDebugMessage("⚠️ 隐藏缩放控件失败: ${e.message}")
+                // 设置默认位置为当前位置（如果有的话）
+                val currentLat = viewModel?.currentLatitude ?: 39.915
+                val currentLng = viewModel?.currentLongitude ?: 116.404
+
+                setMapStatus(MapStatusUpdateFactory.newMapStatus(
+                    MapStatus.Builder()
+                        .target(LatLng(currentLat, currentLng))
+                        .zoom(15f)
+                        .build()
+                ))
+
+                isInitialized = true
             }
-
-            // 设置缩放级别和默认位置（北京）
-            setMapStatus(MapStatusUpdateFactory.newMapStatus(
-                MapStatus.Builder()
-                    .target(LatLng(39.915, 116.404)) // 北京坐标
-                    .zoom(15f)
-                    .build()
-            ))
-            viewModel?.addDebugMessage("📍 地图默认位置设置为北京")
+        }
         }
     }
 }
