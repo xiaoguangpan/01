@@ -1201,7 +1201,7 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean, viewModel
         val currentLocation = LatLng(currentLat, currentLng)
         val markerOptions = MarkerOptions()
             .position(currentLocation)
-            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+            .icon(BitmapDescriptorFactory.fromResource(android.R.drawable.ic_menu_mylocation))
             .title(if (isSimulating) "模拟位置" else "当前位置")
 
         view.map.addOverlay(markerOptions)
