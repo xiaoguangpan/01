@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.baidu.mapapi.map.*
@@ -46,7 +47,7 @@ import kotlinx.coroutines.launch
 // region ViewModel
 enum class InputMode { ADDRESS, COORDINATE }
 
-class MainViewModel : ViewModel() {
+class MainViewModel(private val application: android.app.Application) : ViewModel() {
     var isSimulating by mutableStateOf(false)
         private set
     private var _inputMode by mutableStateOf(InputMode.ADDRESS)
@@ -99,6 +100,8 @@ class MainViewModel : ViewModel() {
 
     init {
         initBaiduSDK()
+        // 应用启动时自动获取当前位置
+        getCurrentLocation(application)
     }
 
     private fun initBaiduSDK() {
@@ -147,15 +150,93 @@ class MainViewModel : ViewModel() {
     }
 
     private fun initLocationClient() {
-        // 这里暂时不初始化定位客户端，因为JitPack版本可能不包含定位SDK
-        // 如果需要定位功能，可以在后续版本中添加
+        try {
+            mLocationClient = LocationClient(application)
+
+            // 配置定位参数
+            val option = LocationClientOption().apply {
+                locationMode = LocationClientOption.LocationMode.Hight_Accuracy // 高精度模式
+                setCoorType("bd09ll") // 百度坐标系
+                setScanSpan(0) // 单次定位
+                setIsNeedAddress(true) // 需要地址信息
+                setIsNeedLocationDescribe(true) // 需要位置描述
+                setNeedDeviceDirect(false) // 不需要设备方向
+                setLocationNotify(false) // 不需要位置提醒
+                setIgnoreKillProcess(true) // 忽略kill进程
+                setIsNeedLocationDescribe(true) // 需要位置描述
+                setIsNeedAltitude(false) // 不需要海拔
+                setOpenGps(true) // 打开GPS
+            }
+
+            mLocationClient?.locOption = option
+            Log.d("LocationViewModel", "LocationClient initialized successfully")
+        } catch (e: Exception) {
+            Log.e("LocationViewModel", "Failed to initialize LocationClient: ${e.message}")
+            mLocationClient = null
+        }
     }
 
     fun getCurrentLocation(context: Context) {
+        if (mLocationClient == null) {
+            statusMessage = "定位服务初始化失败"
+            return
+        }
+
         statusMessage = "正在获取当前位置..."
-        // 暂时使用默认位置（北京）
-        addressQuery = "北京市"
-        statusMessage = "已设置为默认位置：北京市"
+        Log.d("LocationViewModel", "Starting location request")
+
+        // 设置定位监听器
+        mLocationClient?.registerLocationListener(object : BDAbstractLocationListener() {
+            override fun onReceiveLocation(location: BDLocation?) {
+                Log.d("LocationViewModel", "Received location: $location")
+
+                if (location == null) {
+                    statusMessage = "定位失败：未获取到位置信息"
+                    return
+                }
+
+                when (location.locType) {
+                    BDLocation.TypeGpsLocation -> {
+                        // GPS定位成功
+                        val address = location.addrStr ?: "未知地址"
+                        addressQuery = address
+                        statusMessage = "定位成功：$address"
+                        Log.d("LocationViewModel", "GPS location: $address")
+                    }
+                    BDLocation.TypeNetWorkLocation -> {
+                        // 网络定位成功
+                        val address = location.addrStr ?: "未知地址"
+                        addressQuery = address
+                        statusMessage = "定位成功：$address"
+                        Log.d("LocationViewModel", "Network location: $address")
+                    }
+                    BDLocation.TypeOffLineLocation -> {
+                        // 离线定位成功
+                        val address = location.addrStr ?: "未知地址"
+                        addressQuery = address
+                        statusMessage = "离线定位成功：$address"
+                        Log.d("LocationViewModel", "Offline location: $address")
+                    }
+                    else -> {
+                        // 定位失败
+                        val errorMsg = when (location.locType) {
+                            BDLocation.TypeServerError -> "服务端网络定位失败"
+                            BDLocation.TypeNetWorkException -> "网络不通导致定位失败"
+                            BDLocation.TypeCriteriaException -> "无法获取有效定位依据"
+                            else -> "定位失败，错误码：${location.locType}"
+                        }
+                        statusMessage = errorMsg
+                        Log.e("LocationViewModel", "Location failed: $errorMsg")
+                    }
+                }
+
+                // 停止定位
+                mLocationClient?.stop()
+            }
+        })
+
+        // 开始定位
+        mLocationClient?.start()
     }
 
     private fun fetchSuggestions(query: String) {
@@ -270,6 +351,18 @@ class MainViewModel : ViewModel() {
         super.onCleared()
         mSuggestionSearch?.destroy()
         mGeoCoder?.destroy()
+        mLocationClient?.stop()
+        mLocationClient = null
+    }
+}
+
+class MainViewModelFactory(private val application: android.app.Application) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return MainViewModel(application) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
 // endregion
@@ -280,7 +373,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             LocationSimulatorTheme {
-                val viewModel: MainViewModel = viewModel()
+                val viewModel: MainViewModel = viewModel(
+                    factory = MainViewModelFactory(application)
+                )
                 if (viewModel.isSimulating) {
                     SimulatingScreen(
                         address = if (viewModel.inputMode == InputMode.ADDRESS) viewModel.addressQuery else viewModel.coordinateInput,
@@ -600,7 +695,9 @@ private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
 @Composable
 fun DefaultPreview() {
     LocationSimulatorTheme {
-        MainScreen(viewModel = MainViewModel())
+        // Preview中使用模拟的Application
+        val mockApp = androidx.compose.ui.platform.LocalContext.current.applicationContext as android.app.Application
+        MainScreen(viewModel = MainViewModel(mockApp))
     }
 }
 // endregion
