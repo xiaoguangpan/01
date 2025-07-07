@@ -80,10 +80,10 @@ dependencies {
 
     // 移除了Retrofit依赖，使用百度SDK内置功能
 
-    // Baidu Maps SDK
-    implementation("com.baidu.mapapi:map-sdk:7.5.0")
-    implementation ("com.baidu.mapapi:base-sdk:7.5.0")
-    implementation ("com.baidu.mapapi:search-sdk:7.5.0")
+    // 百度地图SDK - 使用稳定版本6.5.3
+    implementation("com.baidu.mapapi:base-sdk:6.5.3")
+    implementation("com.baidu.mapapi:map-sdk:6.5.3")
+    implementation("com.baidu.mapapi:search-sdk:6.5.3")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

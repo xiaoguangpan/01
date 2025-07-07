@@ -10,16 +10,18 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // 尝试使用阿里云镜像
+        // 阿里云镜像
         maven { url = uri("https://maven.aliyun.com/repository/public") }
         maven { url = uri("https://maven.aliyun.com/repository/central") }
         // JitPack仓库
         maven { url = uri("https://jitpack.io") }
-        // 百度官方仓库（备用）
+        // 百度地图SDK仓库 - 使用HTTP协议
         maven {
-            url = uri("https://developer.baidu.com/map/sdk/maven/")
+            url = uri("http://developer.baidu.com/map/sdk/maven/")
             isAllowInsecureProtocol = true
         }
+        // 备用：华为镜像
+        maven { url = uri("https://repo.huaweicloud.com/repository/maven/") }
     }
 }
 
