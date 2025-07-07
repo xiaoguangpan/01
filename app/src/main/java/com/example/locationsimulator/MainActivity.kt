@@ -49,8 +49,8 @@ enum class InputMode { ADDRESS, COORDINATE }
 class MainViewModel : ViewModel() {
     var isSimulating by mutableStateOf(false)
         private set
-    var inputMode by mutableStateOf(InputMode.ADDRESS)
-        private set
+    private var _inputMode by mutableStateOf(InputMode.ADDRESS)
+    val inputMode: InputMode get() = _inputMode
 
     // Address Mode State
     var addressQuery by mutableStateOf("")
@@ -88,7 +88,7 @@ class MainViewModel : ViewModel() {
     }
 
     fun setInputMode(mode: InputMode) {
-        inputMode = mode
+        _inputMode = mode
         statusMessage = null
     }
 
