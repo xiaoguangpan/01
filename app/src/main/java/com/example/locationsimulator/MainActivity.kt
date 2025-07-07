@@ -215,8 +215,6 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                             "权限未完成初始化 - 尝试重新初始化SDK"
                         }
                         SearchResult.ERRORNO.NETWORK_ERROR -> "网络错误 - 请检查网络连接"
-                        SearchResult.ERRORNO.NETWORK_TIMEOUT -> "网络超时 - 请重试"
-                        SearchResult.ERRORNO.PERMISSION_DENIED -> "权限被拒绝 - 请检查API Key权限"
                         SearchResult.ERRORNO.KEY_ERROR -> "API Key错误 - 请检查Key是否正确"
                         else -> "未知错误: ${result.error}"
                     }
@@ -804,25 +802,46 @@ fun StatusCheck(viewModel: MainViewModel) {
     var isDeveloperModeEnabled by remember { mutableStateOf(false) }
     var isMockLocationAppSet by remember { mutableStateOf(false) }
 
-    // 使用 LaunchedEffect 来检查状态（减少频率）
+    // 使用 LaunchedEffect 来检查状态（只在状态变化时输出调试信息）
     LaunchedEffect(Unit) {
         // 初始检查
-        isDeveloperModeEnabled = try {
+        var lastDeveloperMode = try {
             Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
         } catch (e: Exception) {
             false
         }
-        isMockLocationAppSet = MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
+        var lastMockLocationApp = MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
 
-        // 每30秒检查一次，减少调试信息
+        isDeveloperModeEnabled = lastDeveloperMode
+        isMockLocationAppSet = lastMockLocationApp
+
+        // 初始状态输出
+        viewModel.addDebugMessage("📱 初始状态检查 - 开发者模式: ${if (lastDeveloperMode) "已开启" else "未开启"}")
+        viewModel.addDebugMessage("📱 初始状态检查 - 模拟定位应用: ${if (lastMockLocationApp) "已设置" else "未设置"}")
+
+        // 每3秒检查一次，但只在状态变化时输出调试信息
         while (true) {
-            delay(30000)
-            isDeveloperModeEnabled = try {
+            delay(3000)
+
+            val currentDeveloperMode = try {
                 Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
             } catch (e: Exception) {
                 false
             }
-            isMockLocationAppSet = MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
+            val currentMockLocationApp = MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
+
+            // 只在状态变化时输出调试信息
+            if (currentDeveloperMode != lastDeveloperMode) {
+                viewModel.addDebugMessage("🔄 开发者模式状态变化: ${if (currentDeveloperMode) "已开启" else "未开启"}")
+                lastDeveloperMode = currentDeveloperMode
+                isDeveloperModeEnabled = currentDeveloperMode
+            }
+
+            if (currentMockLocationApp != lastMockLocationApp) {
+                viewModel.addDebugMessage("🔄 模拟定位应用状态变化: ${if (currentMockLocationApp) "已设置" else "未设置"}")
+                lastMockLocationApp = currentMockLocationApp
+                isMockLocationAppSet = currentMockLocationApp
+            }
         }
     }
 
