@@ -17,7 +17,8 @@
 
         <meta-data
             android:name="com.baidu.lbsapi.API_KEY"
-            android:value="${BAIDU_MAP_AK}" />
+            android:value="${BAIDU_MAP_AK}"
+            tools:replace="android:value" />
 
         <activity
             android:name=".MainActivity"
