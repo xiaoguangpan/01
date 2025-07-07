@@ -24,14 +24,14 @@ jobs:
       run: |
         keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug, O=Android, C=US" -storepass android -keypass android
         echo "================= DEBUG SHA1 FINGERPRINT =================="
-        keytool -exportcert -alias androiddebugkey -keystore debug.keystore -storepass android | openssl sha1 -binary | openssl base64
+        keytool -list -v -keystore debug.keystore -storepass android | grep SHA1 | head -1
         echo "=========================================================="
 
     - name: Generate Release Keystore & Print SHA1
       run: |
         keytool -genkey -v -keystore release.keystore -alias releasekey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=LocationSimulator, O=LocationSimulator, C=CN" -storepass release123 -keypass release123
         echo "================= RELEASE SHA1 FINGERPRINT =================="
-        keytool -exportcert -alias releasekey -keystore release.keystore -storepass release123 | openssl sha1 -binary | openssl base64
+        keytool -list -v -keystore release.keystore -storepass release123 | grep SHA1 | head -1
         echo "==========================================================="
 
     - name: Build with Gradle
