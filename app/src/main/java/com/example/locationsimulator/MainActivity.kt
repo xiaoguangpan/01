@@ -36,6 +36,7 @@ import com.baidu.mapapi.model.LatLng
 import com.baidu.mapapi.search.core.SearchResult
 import com.baidu.mapapi.search.geocode.*
 import com.baidu.mapapi.search.sug.*
+import com.baidu.location.*
 import com.example.locationsimulator.data.SuggestionItem
 import com.example.locationsimulator.ui.theme.LocationSimulatorTheme
 import com.example.locationsimulator.util.CoordinateConverter
@@ -94,6 +95,7 @@ class MainViewModel : ViewModel() {
     // 百度SDK实例
     private var mSuggestionSearch: SuggestionSearch? = null
     private var mGeoCoder: GeoCoder? = null
+    private var mLocationClient: LocationClient? = null
 
     init {
         initBaiduSDK()
@@ -139,14 +141,36 @@ class MainViewModel : ViewModel() {
 
         // 初始化地理编码
         mGeoCoder = GeoCoder.newInstance()
+
+        // 初始化定位客户端
+        initLocationClient()
+    }
+
+    private fun initLocationClient() {
+        // 这里暂时不初始化定位客户端，因为JitPack版本可能不包含定位SDK
+        // 如果需要定位功能，可以在后续版本中添加
+    }
+
+    fun getCurrentLocation(context: Context) {
+        statusMessage = "正在获取当前位置..."
+        // 暂时使用默认位置（北京）
+        addressQuery = "北京市"
+        statusMessage = "已设置为默认位置：北京市"
     }
 
     private fun fetchSuggestions(query: String) {
-        mSuggestionSearch?.requestSuggestion(
-            SuggestionSearchOption()
-                .city("全国")
-                .keyword(query)
-        )
+        Log.d("LocationViewModel", "Fetching suggestions for: $query")
+        try {
+            mSuggestionSearch?.requestSuggestion(
+                SuggestionSearchOption()
+                    .city("全国")
+                    .keyword(query)
+            )
+            Log.d("LocationViewModel", "Suggestion request sent successfully")
+        } catch (e: Exception) {
+            Log.e("LocationViewModel", "Error fetching suggestions: ${e.message}")
+            suggestions = emptyList()
+        }
     }
 
     fun startSimulation(context: Context) {
@@ -190,22 +214,45 @@ class MainViewModel : ViewModel() {
 
         } else {
             // 坐标模式：直接使用输入的坐标
-            val parts = coordinateInput.split(',', '，').map { it.trim() }
-            if (parts.size != 2) {
-                statusMessage = "坐标格式不正确，请使用 '经度,纬度' 格式"
-                return
-            }
-            val targetLng = parts[0].toDoubleOrNull()
-            val targetLat = parts[1].toDoubleOrNull()
-            if (targetLat == null || targetLng == null) {
-                statusMessage = "经纬度必须是数字"
-                return
-            }
+            Log.d("LocationViewModel", "Processing coordinate input: $coordinateInput")
 
-            val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(targetLng, targetLat)
-            MockLocationManager.start(context, latWgs, lngWgs)
-            isSimulating = true
-            statusMessage = "模拟成功: $coordinateInput"
+            try {
+                val parts = coordinateInput.split(',', '，').map { it.trim() }
+                if (parts.size != 2) {
+                    statusMessage = "坐标格式不正确，请使用 '经度,纬度' 格式"
+                    return
+                }
+
+                val targetLng = parts[0].toDoubleOrNull()
+                val targetLat = parts[1].toDoubleOrNull()
+
+                if (targetLat == null || targetLng == null) {
+                    statusMessage = "经纬度必须是数字"
+                    return
+                }
+
+                // 验证坐标范围
+                if (targetLat < -90 || targetLat > 90) {
+                    statusMessage = "纬度必须在-90到90之间"
+                    return
+                }
+                if (targetLng < -180 || targetLng > 180) {
+                    statusMessage = "经度必须在-180到180之间"
+                    return
+                }
+
+                Log.d("LocationViewModel", "Converting coordinates: lng=$targetLng, lat=$targetLat")
+                val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(targetLng, targetLat)
+
+                Log.d("LocationViewModel", "Starting mock location: lng=$lngWgs, lat=$latWgs")
+                MockLocationManager.start(context, latWgs, lngWgs)
+                isSimulating = true
+                statusMessage = "模拟成功: $coordinateInput"
+
+            } catch (e: Exception) {
+                Log.e("LocationViewModel", "Error processing coordinates: ${e.message}")
+                statusMessage = "坐标处理失败: ${e.message}"
+            }
         }
     }
 
@@ -312,19 +359,44 @@ fun Header() {
 @Composable
 fun StatusCheck() {
     val context = LocalContext.current
+
+    // 检测开发者模式状态
+    val isDeveloperModeEnabled = remember {
+        try {
+            Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // 检测模拟定位应用状态
+    val isMockLocationAppSet = remember {
+        MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
+    }
+
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
             .background(Color.White.copy(alpha = 0.1f))
             .padding(16.dp)
     ) {
-        StatusRow("开发者模式", "已开启", Color(0xFF4CAF50), onClick = {
-            context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
-        })
+        StatusRow(
+            title = "开发者模式",
+            status = if (isDeveloperModeEnabled) "已开启" else "未开启",
+            statusColor = if (isDeveloperModeEnabled) Color(0xFF4CAF50) else Color(0xFFF44336),
+            onClick = {
+                context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+            }
+        )
         Divider(color = Color.White.copy(alpha = 0.2f), thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
-        StatusRow("模拟定位应用", "未设置", Color(0xFFFB8C00), onClick = {
-            context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
-        })
+        StatusRow(
+            title = "模拟定位应用",
+            status = if (isMockLocationAppSet) "已设置" else "未设置",
+            statusColor = if (isMockLocationAppSet) Color(0xFF4CAF50) else Color(0xFFFB8C00),
+            onClick = {
+                context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+            }
+        )
     }
 }
 
@@ -378,6 +450,20 @@ fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
 
         if (isAddressMode) {
             AddressInputWithSuggestions(viewModel)
+            Spacer(Modifier.height(8.dp))
+            // 获取当前位置按钮
+            val context = LocalContext.current
+            OutlinedButton(
+                onClick = { viewModel.getCurrentLocation(context) },
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color.White
+                ),
+                border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.foundation.BorderStroke(1.dp, Color.White).brush),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("获取当前位置", fontSize = 14.sp)
+            }
         } else {
             OutlinedTextField(
                 value = viewModel.coordinateInput,
@@ -466,8 +552,9 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean) {
         view.map.apply {
             // 启用定位图层
             isMyLocationEnabled = true
-            // 设置地图类型为普通地图
-            mapType = BaiduMap.MAP_TYPE_NORMAL
+
+            // 设置地图类型为卫星图（更暗的效果）
+            mapType = BaiduMap.MAP_TYPE_SATELLITE
 
             // 获取UI设置并配置
             val uiSettings = uiSettings
@@ -480,9 +567,19 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean) {
             // 启用旋转手势
             uiSettings.setRotateGesturesEnabled(true)
 
-            // 设置缩放级别
+            // 隐藏百度logo（如果可能）
+            try {
+                view.showZoomControls(false)
+            } catch (e: Exception) {
+                // 忽略错误
+            }
+
+            // 设置缩放级别和默认位置（北京）
             setMapStatus(MapStatusUpdateFactory.newMapStatus(
-                MapStatus.Builder().zoom(15f).build()
+                MapStatus.Builder()
+                    .target(LatLng(39.915, 116.404)) // 北京坐标
+                    .zoom(15f)
+                    .build()
             ))
         }
     }
