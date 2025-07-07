@@ -190,6 +190,10 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     private var mLocationClient: LocationClient? = null
 
     init {
+        addDebugMessage("🚀 Location Simulator 启动")
+        addDebugMessage("📱 系统级全局模拟定位工具")
+        addDebugMessage("🎯 支持覆盖所有应用的定位信息")
+        addDebugMessage("📍 包括百度地图、高德地图、微信、钉钉等")
         initBaiduSDK()
         // 应用启动时自动获取当前位置
         getCurrentLocation(application)
@@ -501,15 +505,27 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                     if (location != null) {
                         Log.d("LocationViewModel", "Geocode success: lng=${location.longitude}, lat=${location.latitude}")
                         val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(location.longitude, location.latitude)
-                        MockLocationManager.start(context, latWgs, lngWgs)
 
-                        // 更新当前坐标为模拟位置
-                        currentLatitude = latWgs
-                        currentLongitude = lngWgs
-                        addDebugMessage("已更新当前坐标为模拟位置: ($lngWgs, $latWgs)")
+                        addDebugMessage("🚀 启动全面系统级模拟定位...")
+                        addDebugMessage("📍 地址: $addressQuery")
+                        addDebugMessage("📍 目标坐标: WGS84($lngWgs, $latWgs)")
 
-                        isSimulating = true
-                        statusMessage = "模拟成功: $addressQuery"
+                        try {
+                            MockLocationManager.start(context, latWgs, lngWgs)
+
+                            // 更新当前坐标为模拟位置
+                            currentLatitude = latWgs
+                            currentLongitude = lngWgs
+                            addDebugMessage("✅ 系统级模拟定位启动成功")
+                            addDebugMessage("📱 已覆盖所有定位提供者 (GPS/网络/被动)")
+                            addDebugMessage("🎯 当前坐标已更新: ($lngWgs, $latWgs)")
+
+                            isSimulating = true
+                            statusMessage = "模拟成功: $addressQuery"
+                        } catch (e: Exception) {
+                            addDebugMessage("❌ 模拟定位启动失败: ${e.message}")
+                            statusMessage = "模拟失败: ${e.message}"
+                        }
                     } else {
                         statusMessage = "无法获取坐标信息"
                         Log.e("LocationViewModel", "Location is null in geocode result")
@@ -574,17 +590,26 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                 val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(targetLng, targetLat)
                 addDebugMessage("坐标转换完成: WGS84($lngWgs, $latWgs)")
 
-                addDebugMessage("启动模拟定位...")
-                Log.d("LocationViewModel", "Starting mock location: lng=$lngWgs, lat=$latWgs")
-                MockLocationManager.start(context, latWgs, lngWgs)
+                addDebugMessage("🚀 启动全面系统级模拟定位...")
+                addDebugMessage("📍 目标坐标: WGS84($lngWgs, $latWgs)")
+                Log.d("LocationViewModel", "Starting comprehensive mock location: lng=$lngWgs, lat=$latWgs")
 
-                // 更新当前坐标为模拟位置
-                currentLatitude = latWgs
-                currentLongitude = lngWgs
-                addDebugMessage("已更新当前坐标为模拟位置: ($lngWgs, $latWgs)")
+                try {
+                    MockLocationManager.start(context, latWgs, lngWgs)
 
-                isSimulating = true
-                statusMessage = "模拟成功: $coordinateInput"
+                    // 更新当前坐标为模拟位置
+                    currentLatitude = latWgs
+                    currentLongitude = lngWgs
+                    addDebugMessage("✅ 系统级模拟定位启动成功")
+                    addDebugMessage("📱 已覆盖所有定位提供者 (GPS/网络/被动)")
+                    addDebugMessage("🎯 当前坐标已更新: ($lngWgs, $latWgs)")
+
+                    isSimulating = true
+                    statusMessage = "模拟成功: $coordinateInput"
+                } catch (e: Exception) {
+                    addDebugMessage("❌ 模拟定位启动失败: ${e.message}")
+                    statusMessage = "模拟失败: ${e.message}"
+                }
 
             } catch (e: Exception) {
                 Log.e("LocationViewModel", "Error processing coordinates: ${e.message}")
@@ -594,13 +619,20 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     }
 
     fun stopSimulation(context: Context) {
-        MockLocationManager.stop(context)
-        isSimulating = false
-        statusMessage = null
-        addressQuery = ""
-        coordinateInput = ""
-        selectedSuggestion = null
-        suggestions = emptyList()
+        addDebugMessage("🛑 停止系统级模拟定位...")
+        try {
+            MockLocationManager.stop(context)
+            isSimulating = false
+            statusMessage = null
+            addressQuery = ""
+            coordinateInput = ""
+            selectedSuggestion = null
+            suggestions = emptyList()
+            addDebugMessage("✅ 所有模拟定位提供者已停止")
+            addDebugMessage("🔄 系统定位已恢复正常")
+        } catch (e: Exception) {
+            addDebugMessage("❌ 停止模拟定位失败: ${e.message}")
+        }
     }
 
     override fun onCleared() {
