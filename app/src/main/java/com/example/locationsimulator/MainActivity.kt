@@ -110,7 +110,7 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     var isDebugExpanded by mutableStateOf(false)
         private set
 
-    var isDebugPanelVisible by mutableStateOf(true)
+    var isDebugPanelVisible by mutableStateOf(false)
         private set
 
     private var addressTabClickCount = 0
@@ -1204,7 +1204,7 @@ fun AddressInputWithSuggestions(viewModel: MainViewModel) {
                 modifier = Modifier.padding(end = 8.dp)
             )
 
-            Box {
+            Box(modifier = Modifier.weight(1f)) {
                 OutlinedButton(
                     onClick = { showCityDropdown = true },
                     shape = RoundedCornerShape(8.dp),
@@ -1212,7 +1212,7 @@ fun AddressInputWithSuggestions(viewModel: MainViewModel) {
                         contentColor = Color.White
                     ),
                     border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.foundation.BorderStroke(1.dp, Color.White).brush),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("${viewModel.currentSearchCity} ▼", fontSize = 14.sp)
                 }
