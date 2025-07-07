@@ -10,7 +10,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://developer.baidu.com/map/sdk/maven/") }
+        maven {
+            url = uri("https://developer.baidu.com/map/sdk/maven/")
+            isAllowInsecureProtocol = true
+        }
     }
 }
 

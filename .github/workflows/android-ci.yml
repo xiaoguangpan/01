@@ -23,9 +23,16 @@ jobs:
     - name: Generate Debug Keystore & Print SHA1
       run: |
         keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug, O=Android, C=US" -storepass android -keypass android
-        echo "================= BAIDU MAPS SHA1 FINGERPRINT =================="
+        echo "================= DEBUG SHA1 FINGERPRINT =================="
         keytool -exportcert -alias androiddebugkey -keystore debug.keystore -storepass android | openssl sha1 -binary | openssl base64
-        echo "================================================================="
+        echo "=========================================================="
+
+    - name: Generate Release Keystore & Print SHA1
+      run: |
+        keytool -genkey -v -keystore release.keystore -alias releasekey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=LocationSimulator, O=LocationSimulator, C=CN" -storepass release123 -keypass release123
+        echo "================= RELEASE SHA1 FINGERPRINT =================="
+        keytool -exportcert -alias releasekey -keystore release.keystore -storepass release123 | openssl sha1 -binary | openssl base64
+        echo "==========================================================="
 
     - name: Build with Gradle
       run: gradle build
@@ -33,14 +40,26 @@ jobs:
         BAIDU_MAP_AK: ${{ secrets.BAIDU_MAP_AK }}
         BAIDU_MAP_SK: ${{ secrets.BAIDU_MAP_SK }}
 
-    - name: Build APK
+    - name: Build Debug APK
       run: gradle assembleDebug
       env:
         BAIDU_MAP_AK: ${{ secrets.BAIDU_MAP_AK }}
         BAIDU_MAP_SK: ${{ secrets.BAIDU_MAP_SK }}
 
-    - name: Upload APK
+    - name: Build Release APK
+      run: gradle assembleRelease
+      env:
+        BAIDU_MAP_AK: ${{ secrets.BAIDU_MAP_AK }}
+        BAIDU_MAP_SK: ${{ secrets.BAIDU_MAP_SK }}
+
+    - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
         name: app-debug.apk
         path: app/build/outputs/apk/debug/app-debug.apk
+
+    - name: Upload Release APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release.apk
+        path: app/build/outputs/apk/release/app-release.apk

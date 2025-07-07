@@ -24,6 +24,15 @@ android {
         manifestPlaceholders["BAIDU_MAP_AK"] = System.getenv("BAIDU_MAP_AK") ?: ""
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../release.keystore")
+            storePassword = "release123"
+            keyAlias = "releasekey"
+            keyPassword = "release123"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -31,6 +40,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
