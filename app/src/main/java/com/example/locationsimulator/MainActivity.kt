@@ -1,10 +1,14 @@
 package com.example.locationsimulator
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -109,25 +113,37 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         mSuggestionSearch = SuggestionSearch.newInstance()
         mSuggestionSearch?.setOnGetSuggestionResultListener(object : OnGetSuggestionResultListener {
             override fun onGetSuggestionResult(result: SuggestionResult?) {
-                if (result == null || result.error != SearchResult.ERRORNO.NO_ERROR) {
-                    Log.e("ViewModel", "Suggestion search failed: ${result?.error}")
+                Log.d("LocationViewModel", "Received suggestion result: $result")
+
+                if (result == null) {
+                    Log.e("LocationViewModel", "Suggestion result is null")
+                    suggestions = emptyList()
+                    return
+                }
+
+                if (result.error != SearchResult.ERRORNO.NO_ERROR) {
+                    Log.e("LocationViewModel", "Suggestion search failed with error: ${result.error}")
                     suggestions = emptyList()
                     return
                 }
 
                 // 使用getAllSuggestions()获取建议列表
                 val allSuggestions = result.allSuggestions
+                Log.d("LocationViewModel", "All suggestions count: ${allSuggestions?.size ?: 0}")
+
                 if (allSuggestions == null || allSuggestions.isEmpty()) {
+                    Log.d("LocationViewModel", "No suggestions found")
                     suggestions = emptyList()
                     return
                 }
 
                 val suggestionItems = allSuggestions.mapNotNull { info ->
-                    // 过滤掉没有坐标信息的建议（如纯文字联想）
-                    if (info.key != null && info.pt != null) {
+                    Log.d("LocationViewModel", "Processing suggestion: key=${info.key}, pt=${info.pt}")
+                    // 包含所有建议，不仅仅是有坐标的
+                    if (info.key != null) {
                         SuggestionItem(
                             name = info.key,
-                            location = info.pt,
+                            location = info.pt, // 可能为null
                             uid = info.uid,
                             city = info.city,
                             district = info.district
@@ -138,7 +154,7 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                 }
 
                 suggestions = suggestionItems
-                Log.d("ViewModel", "Got ${suggestionItems.size} suggestions")
+                Log.d("LocationViewModel", "Final suggestions count: ${suggestionItems.size}")
             }
         })
 
@@ -177,9 +193,20 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     }
 
     fun getCurrentLocation(context: Context) {
-        if (mLocationClient == null) {
-            statusMessage = "定位服务初始化失败"
+        // 检查定位权限
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
+            statusMessage = "需要定位权限，请在设置中授予定位权限"
             return
+        }
+
+        if (mLocationClient == null) {
+            statusMessage = "定位服务初始化失败，正在重新初始化..."
+            initLocationClient()
+            if (mLocationClient == null) {
+                statusMessage = "定位服务不可用"
+                return
+            }
         }
 
         statusMessage = "正在获取当前位置..."
@@ -267,19 +294,42 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
             // 设置地理编码监听器
             mGeoCoder?.setOnGetGeoCodeResultListener(object : OnGetGeoCoderResultListener {
                 override fun onGetGeoCodeResult(result: GeoCodeResult?) {
-                    if (result == null || result.error != SearchResult.ERRORNO.NO_ERROR) {
-                        statusMessage = "地址解析失败，请检查地址是否正确"
+                    Log.d("LocationViewModel", "Geocode result: $result")
+
+                    if (result == null) {
+                        statusMessage = "地址解析失败：无返回结果"
+                        Log.e("LocationViewModel", "Geocode result is null")
+                        return
+                    }
+
+                    if (result.error != SearchResult.ERRORNO.NO_ERROR) {
+                        val errorMsg = when (result.error) {
+                            SearchResult.ERRORNO.AMBIGUOUS_KEYWORD -> "地址信息不明确，请提供更详细的地址"
+                            SearchResult.ERRORNO.AMBIGUOUS_ROURE_ADDR -> "路线地址不明确"
+                            SearchResult.ERRORNO.NOT_SUPPORT_BUS -> "不支持公交路线"
+                            SearchResult.ERRORNO.NOT_SUPPORT_DRIVE_WAY -> "不支持驾车路线"
+                            SearchResult.ERRORNO.RESULT_NOT_FOUND -> "未找到相关地址"
+                            SearchResult.ERRORNO.ST_TIMEOUT -> "请求超时，请重试"
+                            SearchResult.ERRORNO.PERMISSION_UNFINISHED -> "权限验证未完成"
+                            SearchResult.ERRORNO.KEY_ERROR -> "API密钥错误"
+                            SearchResult.ERRORNO.NETWORK_ERROR -> "网络连接失败"
+                            else -> "地址解析失败，错误码：${result.error}"
+                        }
+                        statusMessage = errorMsg
+                        Log.e("LocationViewModel", "Geocode failed: ${result.error}")
                         return
                     }
 
                     val location = result.location
                     if (location != null) {
+                        Log.d("LocationViewModel", "Geocode success: lng=${location.longitude}, lat=${location.latitude}")
                         val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(location.longitude, location.latitude)
                         MockLocationManager.start(context, latWgs, lngWgs)
                         isSimulating = true
                         statusMessage = "模拟成功: $addressQuery"
                     } else {
                         statusMessage = "无法获取坐标信息"
+                        Log.e("LocationViewModel", "Location is null in geocode result")
                     }
                 }
 
@@ -289,9 +339,15 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
             })
 
             // 发起地理编码请求
-            mGeoCoder?.geocode(GeoCodeOption()
-                .city("全国")
-                .address(addressQuery))
+            try {
+                Log.d("LocationViewModel", "Starting geocode for address: $addressQuery")
+                mGeoCoder?.geocode(GeoCodeOption()
+                    .city("全国")
+                    .address(addressQuery))
+            } catch (e: Exception) {
+                Log.e("LocationViewModel", "Error starting geocode: ${e.message}")
+                statusMessage = "地址解析启动失败: ${e.message}"
+            }
 
         } else {
             // 坐标模式：直接使用输入的坐标
@@ -369,8 +425,17 @@ class MainViewModelFactory(private val application: android.app.Application) : V
 
 // region UI Composables
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 检查并请求定位权限
+        checkAndRequestLocationPermission()
+
         setContent {
             LocationSimulatorTheme {
                 val viewModel: MainViewModel = viewModel(
@@ -384,6 +449,41 @@ class MainActivity : ComponentActivity() {
                 } else {
                     MainScreen(viewModel = viewModel)
                 }
+            }
+        }
+    }
+
+    private fun checkAndRequestLocationPermission() {
+        val permissions = arrayOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+
+        val permissionsToRequest = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (permissionsToRequest.isNotEmpty()) {
+            ActivityCompat.requestPermissions(
+                this,
+                permissionsToRequest.toTypedArray(),
+                LOCATION_PERMISSION_REQUEST_CODE
+            )
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (!allGranted) {
+                // 权限被拒绝，可以显示说明或引导用户到设置页面
+                Log.w("MainActivity", "Location permissions denied")
             }
         }
     }
@@ -455,18 +555,19 @@ fun Header() {
 fun StatusCheck() {
     val context = LocalContext.current
 
-    // 检测开发者模式状态
-    val isDeveloperModeEnabled = remember {
-        try {
+    // 使用 remember 和 mutableStateOf 来实现状态更新
+    var isDeveloperModeEnabled by remember { mutableStateOf(false) }
+    var isMockLocationAppSet by remember { mutableStateOf(false) }
+
+    // 使用 LaunchedEffect 来定期检查状态
+    LaunchedEffect(Unit) {
+        isDeveloperModeEnabled = try {
             Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
         } catch (e: Exception) {
             false
         }
-    }
 
-    // 检测模拟定位应用状态
-    val isMockLocationAppSet = remember {
-        MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
+        isMockLocationAppSet = MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
     }
 
     Column(

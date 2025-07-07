@@ -71,11 +71,23 @@ object MockLocationManager {
 
     fun isCurrentAppSelectedAsMockLocationApp(context: Context): Boolean {
         return try {
-            val selectedApp = Settings.Secure.getString(context.contentResolver, "mock_location_app")
-            selectedApp == context.packageName
+            // Android 6.0+ 检查应用是否有系统级权限
+            val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+            val mode = appOps.checkOpNoThrow(
+                android.app.AppOpsManager.OPSTR_MOCK_LOCATION,
+                android.os.Process.myUid(),
+                context.packageName
+            )
+            mode == android.app.AppOpsManager.MODE_ALLOWED
         } catch (e: Exception) {
-            // 如果无法获取，假设已设置（避免误报）
-            true
+            // 如果检查失败，尝试其他方法
+            try {
+                val selectedApp = Settings.Secure.getString(context.contentResolver, "mock_location_app")
+                selectedApp == context.packageName
+            } catch (e2: Exception) {
+                // 最后尝试检查是否在开发者选项中
+                Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
+            }
         }
     }
 }
