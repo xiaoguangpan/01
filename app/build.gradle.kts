@@ -83,10 +83,10 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
-    // Baidu Maps SDK
-    implementation("com.baidu.mapapi:map-sdk:7.5.0")
-    implementation ("com.baidu.mapapi:base-sdk:7.5.0")
-    implementation ("com.baidu.mapapi:search-sdk:7.5.0")
+    // Baidu Maps SDK - 暂时注释掉，等仓库问题解决后再启用
+    // implementation("com.baidu.mapapi:map-sdk:7.5.0")
+    // implementation ("com.baidu.mapapi:base-sdk:7.5.0")
+    // implementation ("com.baidu.mapapi:search-sdk:7.5.0")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

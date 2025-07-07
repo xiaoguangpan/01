@@ -26,12 +26,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.text.style.TextAlign
+// import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.baidu.mapapi.map.*
-import com.baidu.mapapi.model.LatLng
+// 暂时注释掉百度地图相关导入
+// import com.baidu.mapapi.map.*
+// import com.baidu.mapapi.model.LatLng
 import com.example.locationsimulator.network.BaiduApiService
 import com.example.locationsimulator.network.RetrofitClient
 import com.example.locationsimulator.network.SnCalculator
@@ -212,7 +214,22 @@ fun SimulatingScreen(address: String, onStopClick: () -> Unit) {
             Header()
             Spacer(Modifier.height(16.dp))
             SimulatingStatus(address)
-            BaiduMapView(modifier = Modifier.weight(1f).padding(vertical = 16.dp), isSimulating = true)
+            // 暂时注释掉地图视图
+            // BaiduMapView(modifier = Modifier.weight(1f).padding(vertical = 16.dp), isSimulating = true)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 16.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Gray.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "地图视图\n(暂时禁用)",
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+            }
             Button(
                 onClick = onStopClick,
                 shape = RoundedCornerShape(16.dp),
@@ -372,6 +389,8 @@ fun AddressInputWithSuggestions(viewModel: MainViewModel) {
     }
 }
 
+// 暂时注释掉百度地图视图
+/*
 @Composable
 fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean) {
     val context = LocalContext.current
@@ -385,6 +404,7 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean) {
         // Further map configuration can be done here
     }
 }
+*/
 
 @Composable
 private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
