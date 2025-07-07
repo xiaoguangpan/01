@@ -25,6 +25,34 @@ jobs:
         keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug, O=Android, C=US" -storepass android -keypass android
         keytool -genkey -v -keystore release.keystore -alias releasekey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=LocationSimulator, O=LocationSimulator, C=CN" -storepass release123 -keypass release123
 
+    - name: Get SHA1 fingerprint
+      id: get_sha1
+      run: |
+        echo "=== Debug版本SHA1 ==="
+        DEBUG_SHA1=$(keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep "SHA1:" | cut -d' ' -f3)
+        echo "Debug SHA1: $DEBUG_SHA1"
+
+        echo "=== Release版本SHA1 ==="
+        RELEASE_SHA1=$(keytool -list -v -keystore release.keystore -alias releasekey -storepass release123 -keypass release123 2>/dev/null | grep "SHA1:" | cut -d' ' -f3)
+        echo "Release SHA1: $RELEASE_SHA1"
+
+        echo "=== 百度地图配置信息 ==="
+        PACKAGE_NAME="com.example.locationsimulator"
+        DEBUG_SECURITY_CODE="$DEBUG_SHA1;$PACKAGE_NAME;Location Simulator Debug"
+        RELEASE_SECURITY_CODE="$RELEASE_SHA1;$PACKAGE_NAME;Location Simulator"
+
+        echo "📦 包名: $PACKAGE_NAME"
+        echo "🔐 Debug安全码: $DEBUG_SECURITY_CODE"
+        echo "🔐 Release安全码: $RELEASE_SECURITY_CODE"
+        echo ""
+        echo "📋 请将上述安全码配置到百度开发者平台："
+        echo "   https://lbsyun.baidu.com/apiconsole/key"
+
+        echo "DEBUG_SHA1=$DEBUG_SHA1" >> $GITHUB_OUTPUT
+        echo "RELEASE_SHA1=$RELEASE_SHA1" >> $GITHUB_OUTPUT
+        echo "DEBUG_SECURITY_CODE=$DEBUG_SECURITY_CODE" >> $GITHUB_OUTPUT
+        echo "RELEASE_SECURITY_CODE=$RELEASE_SECURITY_CODE" >> $GITHUB_OUTPUT
+
     - name: Build with Gradle
       run: gradle build
       env:

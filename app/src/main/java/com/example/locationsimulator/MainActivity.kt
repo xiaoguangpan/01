@@ -55,8 +55,11 @@ import com.example.locationsimulator.data.SuggestionItem
 import com.example.locationsimulator.ui.theme.LocationSimulatorTheme
 import com.example.locationsimulator.util.CoordinateConverter
 import com.example.locationsimulator.util.MockLocationManager
+import com.example.locationsimulator.util.SHA1Util
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 // region ViewModel
 enum class InputMode { ADDRESS, COORDINATE }
@@ -142,6 +145,12 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     fun checkAndReinitSDK() {
         addDebugMessage("🔄 检查SDK状态并重新初始化...")
 
+        // 输出SHA1配置信息
+        val sha1 = SHA1Util.getAppSHA1(application)
+        val securityCode = SHA1Util.generateBaiduSecurityCode(application)
+        addDebugMessage("📋 当前应用SHA1: ${sha1?.take(20)}...")
+        addDebugMessage("🔐 百度安全码: ${securityCode?.take(30)}...")
+
         // 重新初始化建议搜索
         try {
             mSuggestionSearch?.destroy()
@@ -194,16 +203,20 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         addDebugMessage("📱 系统级全局模拟定位工具")
         addDebugMessage("🎯 支持覆盖所有应用的定位信息")
         addDebugMessage("📍 包括百度地图、高德地图、微信、钉钉等")
+        addDebugMessage("⚠️ 如遇PERMISSION_UNFINISHED错误，请检查百度开发者平台SHA1配置")
+        addDebugMessage("📋 包名: com.example.locationsimulator")
         initBaiduSDK()
         // 应用启动时自动获取当前位置
         getCurrentLocation(application)
     }
 
     private fun initBaiduSDK() {
-        addDebugMessage("🔧 开始初始化百度SDK...")
+        addDebugMessage("🔧 初始化百度地图服务...")
 
         try {
-            // 检查API Key是否设置
+            // SDK已在Application中初始化，这里只需要初始化具体服务
+
+            // 检查API Key配置
             val apiKey = application.packageManager.getApplicationInfo(
                 application.packageName,
                 android.content.pm.PackageManager.GET_META_DATA
@@ -211,59 +224,75 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
 
             if (apiKey.isNullOrEmpty()) {
                 addDebugMessage("❌ 百度API Key未设置或为空")
+                return
             } else {
-                addDebugMessage("✅ 百度API Key已设置: ${apiKey.take(10)}...")
+                addDebugMessage("✅ 百度API Key已配置: ${apiKey.take(10)}...")
             }
 
-            // 初始化建议搜索
+            // 等待一下确保SDK完全初始化
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                initSuggestionSearch()
+            }, 500)
+
+        } catch (e: Exception) {
+            addDebugMessage("❌ 服务初始化异常: ${e.message}")
+        }
+    }
+
+    private fun initSuggestionSearch() {
+        try {
             addDebugMessage("🔍 初始化地址建议搜索...")
+
+            // 创建建议搜索实例
             mSuggestionSearch = SuggestionSearch.newInstance()
 
             if (mSuggestionSearch == null) {
-                addDebugMessage("❌ SuggestionSearch初始化失败")
+                addDebugMessage("❌ SuggestionSearch创建失败")
                 return
-            } else {
-                addDebugMessage("✅ SuggestionSearch初始化成功")
             }
 
+            addDebugMessage("✅ SuggestionSearch创建成功")
+
+            // 设置搜索结果监听器
+            setupSuggestionSearchListener()
+
         } catch (e: Exception) {
-            addDebugMessage("❌ SDK初始化异常: ${e.message}")
-            return
+            addDebugMessage("❌ SuggestionSearch初始化失败: ${e.message}")
         }
+    }
+
+    private fun setupSuggestionSearchListener() {
 
         mSuggestionSearch?.setOnGetSuggestionResultListener(object : OnGetSuggestionResultListener {
             override fun onGetSuggestionResult(result: SuggestionResult?) {
-                addDebugMessage("收到地址建议搜索结果")
-                Log.d("LocationViewModel", "Received suggestion result: $result")
+                // 确保在主线程中处理结果
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    addDebugMessage("📡 收到地址建议搜索结果")
+                    Log.d("LocationViewModel", "Received suggestion result: $result")
 
-                if (result == null) {
-                    addDebugMessage("搜索结果为空")
-                    Log.e("LocationViewModel", "Suggestion result is null")
-                    suggestions = emptyList()
-                    return
-                }
+                    if (result == null) {
+                        addDebugMessage("❌ 搜索结果为空")
+                        Log.e("LocationViewModel", "Suggestion result is null")
+                        suggestions = emptyList()
+                        return@post
+                    }
 
-                if (result.error != SearchResult.ERRORNO.NO_ERROR) {
-                    val errorMsg = when (result.error) {
-                        SearchResult.ERRORNO.PERMISSION_UNFINISHED -> {
-                            "权限未完成初始化 - 尝试重新初始化SDK"
+                    if (result.error != SearchResult.ERRORNO.NO_ERROR) {
+                        val errorMsg = when (result.error) {
+                            SearchResult.ERRORNO.PERMISSION_UNFINISHED -> {
+                                "权限未完成初始化 - 请检查API Key和SHA1安全码配置"
+                            }
+                            SearchResult.ERRORNO.NETWORK_ERROR -> "网络错误 - 请检查网络连接"
+                            SearchResult.ERRORNO.KEY_ERROR -> "API Key错误 - 请检查Key是否正确"
+                            else -> "未知错误: ${result.error}"
                         }
-                        SearchResult.ERRORNO.NETWORK_ERROR -> "网络错误 - 请检查网络连接"
-                        SearchResult.ERRORNO.KEY_ERROR -> "API Key错误 - 请检查Key是否正确"
-                        else -> "未知错误: ${result.error}"
-                    }
-                    addDebugMessage("❌ 搜索失败: $errorMsg")
-                    Log.e("LocationViewModel", "Suggestion search failed with error: ${result.error}")
+                        addDebugMessage("❌ 搜索失败: $errorMsg")
+                        addDebugMessage("💡 提示: 请确保在百度开发者平台正确配置了SHA1安全码")
+                        Log.e("LocationViewModel", "Suggestion search failed with error: ${result.error}")
 
-                    // 如果是权限未完成错误，尝试重新初始化SDK
-                    if (result.error == SearchResult.ERRORNO.PERMISSION_UNFINISHED) {
-                        addDebugMessage("🔄 检测到PERMISSION_UNFINISHED，尝试重新初始化SDK...")
-                        checkAndReinitSDK()
+                        suggestions = emptyList()
+                        return@post
                     }
-
-                    suggestions = emptyList()
-                    return
-                }
 
                 // 使用getAllSuggestions()获取建议列表
                 val allSuggestions = result.allSuggestions
@@ -430,34 +459,51 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     }
 
     private fun fetchSuggestions(query: String) {
-        addDebugMessage("发起地址建议搜索: '$query'")
+        addDebugMessage("🔍 发起地址建议搜索: '$query'")
         Log.d("LocationViewModel", "Fetching suggestions for: $query")
+
         try {
             if (mSuggestionSearch == null) {
-                addDebugMessage("SuggestionSearch未初始化，重新初始化...")
-                initBaiduSDK()
-                if (mSuggestionSearch == null) {
-                    addDebugMessage("重新初始化后仍然失败")
-                    return
-                }
+                addDebugMessage("⚠️ SuggestionSearch未初始化，重新初始化...")
+                initSuggestionSearch()
+
+                // 延迟执行搜索，等待初始化完成
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    if (mSuggestionSearch != null) {
+                        performSuggestionSearch(query)
+                    } else {
+                        addDebugMessage("❌ 重新初始化后仍然失败")
+                    }
+                }, 1000)
+                return
             }
 
-            // 使用更简单的搜索选项，避免复杂配置
-            val option = SuggestionSearchOption()
-            option.keyword(query)
-            option.city("全国")
+            performSuggestionSearch(query)
 
-            mSuggestionSearch?.requestSuggestion(option)
-            addDebugMessage("地址建议搜索请求已发送")
-            Log.d("LocationViewModel", "Suggestion request sent successfully")
         } catch (e: Exception) {
-            addDebugMessage("地址建议搜索失败: ${e.message}")
+            addDebugMessage("❌ 地址建议搜索异常: ${e.message}")
             Log.e("LocationViewModel", "Error fetching suggestions: ${e.message}")
             suggestions = emptyList()
+        }
+    }
 
-            // 如果搜索失败，尝试重新初始化
-            addDebugMessage("尝试重新初始化SDK...")
-            checkAndReinitSDK()
+    private fun performSuggestionSearch(query: String) {
+        try {
+            // 使用最简单的搜索选项
+            val option = SuggestionSearchOption().apply {
+                keyword(query)
+                // 不设置城市限制，搜索全国范围
+            }
+
+            addDebugMessage("📡 发送搜索请求到百度服务器...")
+            mSuggestionSearch?.requestSuggestion(option)
+            addDebugMessage("✅ 搜索请求已发送，等待服务器响应...")
+            Log.d("LocationViewModel", "Suggestion request sent successfully for: $query")
+
+        } catch (e: Exception) {
+            addDebugMessage("❌ 发送搜索请求失败: ${e.message}")
+            Log.e("LocationViewModel", "Error sending suggestion request: ${e.message}")
+            suggestions = emptyList()
         }
     }
 
@@ -676,7 +722,8 @@ class MainActivity : ComponentActivity() {
                 if (viewModel.isSimulating) {
                     SimulatingScreen(
                         address = if (viewModel.inputMode == InputMode.ADDRESS) viewModel.addressQuery else viewModel.coordinateInput,
-                        onStopClick = { viewModel.stopSimulation(this) }
+                        onStopClick = { viewModel.stopSimulation(this) },
+                        viewModel = viewModel
                     )
                 } else {
                     MainScreen(viewModel = viewModel)
@@ -747,7 +794,7 @@ fun MainScreen(viewModel: MainViewModel) {
 }
 
 @Composable
-fun SimulatingScreen(address: String, onStopClick: () -> Unit) {
+fun SimulatingScreen(address: String, onStopClick: () -> Unit, viewModel: MainViewModel) {
     Box(modifier = Modifier
         .fillMaxSize()
         .background(Color(0xFF1F2937))) {
@@ -758,7 +805,7 @@ fun SimulatingScreen(address: String, onStopClick: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             SimulatingStatus(address)
-            BaiduMapView(modifier = Modifier.weight(1f).padding(vertical = 16.dp), isSimulating = true)
+            BaiduMapView(modifier = Modifier.weight(1f).padding(vertical = 16.dp), isSimulating = true, viewModel = viewModel)
             Button(
                 onClick = onStopClick,
                 shape = RoundedCornerShape(16.dp),
@@ -1147,13 +1194,25 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean, viewModel
             }
         }
 
-        // 每次坐标变化时更新地图位置
-        view.map.setMapStatus(MapStatusUpdateFactory.newMapStatus(
-            MapStatus.Builder()
-                .target(LatLng(currentLat, currentLng))
-                .zoom(15f)
-                .build()
-        ))
+        // 清除之前的覆盖物
+        view.map.clear()
+
+        // 添加当前位置标注
+        val currentLocation = LatLng(currentLat, currentLng)
+        val markerOptions = MarkerOptions()
+            .position(currentLocation)
+            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+            .title(if (isSimulating) "模拟位置" else "当前位置")
+
+        view.map.addOverlay(markerOptions)
+
+        // 更新地图位置并添加动画
+        val mapStatus = MapStatus.Builder()
+            .target(currentLocation)
+            .zoom(16f)
+            .build()
+
+        view.map.animateMapStatus(MapStatusUpdateFactory.newMapStatus(mapStatus))
     }
 }
 
