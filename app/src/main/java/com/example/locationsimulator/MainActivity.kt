@@ -430,21 +430,30 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         Log.d("LocationViewModel", "Fetching suggestions for: $query")
         try {
             if (mSuggestionSearch == null) {
-                addDebugMessage("SuggestionSearch未初始化")
-                return
+                addDebugMessage("SuggestionSearch未初始化，重新初始化...")
+                initBaiduSDK()
+                if (mSuggestionSearch == null) {
+                    addDebugMessage("重新初始化后仍然失败")
+                    return
+                }
             }
 
-            mSuggestionSearch?.requestSuggestion(
-                SuggestionSearchOption()
-                    .city("全国")
-                    .keyword(query)
-            )
+            // 使用更简单的搜索选项，避免复杂配置
+            val option = SuggestionSearchOption()
+            option.keyword(query)
+            option.city("全国")
+
+            mSuggestionSearch?.requestSuggestion(option)
             addDebugMessage("地址建议搜索请求已发送")
             Log.d("LocationViewModel", "Suggestion request sent successfully")
         } catch (e: Exception) {
             addDebugMessage("地址建议搜索失败: ${e.message}")
             Log.e("LocationViewModel", "Error fetching suggestions: ${e.message}")
             suggestions = emptyList()
+
+            // 如果搜索失败，尝试重新初始化
+            addDebugMessage("尝试重新初始化SDK...")
+            checkAndReinitSDK()
         }
     }
 
@@ -493,6 +502,12 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                         Log.d("LocationViewModel", "Geocode success: lng=${location.longitude}, lat=${location.latitude}")
                         val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(location.longitude, location.latitude)
                         MockLocationManager.start(context, latWgs, lngWgs)
+
+                        // 更新当前坐标为模拟位置
+                        currentLatitude = latWgs
+                        currentLongitude = lngWgs
+                        addDebugMessage("已更新当前坐标为模拟位置: ($lngWgs, $latWgs)")
+
                         isSimulating = true
                         statusMessage = "模拟成功: $addressQuery"
                     } else {
@@ -562,6 +577,12 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                 addDebugMessage("启动模拟定位...")
                 Log.d("LocationViewModel", "Starting mock location: lng=$lngWgs, lat=$latWgs")
                 MockLocationManager.start(context, latWgs, lngWgs)
+
+                // 更新当前坐标为模拟位置
+                currentLatitude = latWgs
+                currentLongitude = lngWgs
+                addDebugMessage("已更新当前坐标为模拟位置: ($lngWgs, $latWgs)")
+
                 isSimulating = true
                 statusMessage = "模拟成功: $coordinateInput"
 
@@ -750,22 +771,23 @@ fun DebugPanel(viewModel: MainViewModel) {
                     .fillMaxWidth()
                     .padding(12.dp)
             ) {
-                // 标题栏和操作按钮
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // 标题栏和操作按钮 - 改为垂直布局
+                Column(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         "🔧 调试信息 (${viewModel.debugMessages.size})",
                         color = Color.Yellow,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth()
                     )
+
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     // 操作按钮 - 水平排列，紧凑布局
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         // 展开/收起按钮
@@ -1059,6 +1081,10 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean, viewModel
     val mapView = remember { MapView(context) }
     var isInitialized by remember { mutableStateOf(false) }
 
+    // 监听坐标变化
+    val currentLat = viewModel?.currentLatitude ?: 39.915
+    val currentLng = viewModel?.currentLongitude ?: 116.404
+
     AndroidView(
         factory = { mapView },
         modifier = modifier.clip(RoundedCornerShape(16.dp))
@@ -1085,20 +1111,17 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean, viewModel
                     // 忽略错误
                 }
 
-                // 设置默认位置为当前位置（如果有的话）
-                val currentLat = viewModel?.currentLatitude ?: 39.915
-                val currentLng = viewModel?.currentLongitude ?: 116.404
-
-                setMapStatus(MapStatusUpdateFactory.newMapStatus(
-                    MapStatus.Builder()
-                        .target(LatLng(currentLat, currentLng))
-                        .zoom(15f)
-                        .build()
-                ))
-
                 isInitialized = true
             }
         }
+
+        // 每次坐标变化时更新地图位置
+        view.map.setMapStatus(MapStatusUpdateFactory.newMapStatus(
+            MapStatus.Builder()
+                .target(LatLng(currentLat, currentLng))
+                .zoom(15f)
+                .build()
+        ))
     }
 }
 
