@@ -27,17 +27,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
-// import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-// 暂时注释掉百度地图相关导入
-// import com.baidu.mapapi.map.*
-// import com.baidu.mapapi.model.LatLng
-import com.example.locationsimulator.network.BaiduApiService
-import com.example.locationsimulator.network.RetrofitClient
-import com.example.locationsimulator.network.SnCalculator
-import com.example.locationsimulator.network.SuggestionResult
+import com.baidu.mapapi.map.*
+import com.baidu.mapapi.model.LatLng
+import com.baidu.mapapi.search.core.SearchResult
+import com.baidu.mapapi.search.geocode.*
+import com.baidu.mapapi.search.sug.*
+import com.example.locationsimulator.data.SuggestionItem
 import com.example.locationsimulator.ui.theme.LocationSimulatorTheme
 import com.example.locationsimulator.util.CoordinateConverter
 import com.example.locationsimulator.util.MockLocationManager
@@ -55,9 +54,9 @@ class MainViewModel : ViewModel() {
     // Address Mode State
     var addressQuery by mutableStateOf("")
         private set
-    var suggestions by mutableStateOf<List<SuggestionResult>>(emptyList())
+    var suggestions by mutableStateOf<List<SuggestionItem>>(emptyList())
         private set
-    var selectedSuggestion by mutableStateOf<SuggestionResult?>(null)
+    var selectedSuggestion by mutableStateOf<SuggestionItem?>(null)
         private set
 
     // Coordinate Mode State
@@ -81,7 +80,7 @@ class MainViewModel : ViewModel() {
         coordinateInput = input
     }
 
-    fun selectSuggestion(suggestion: SuggestionResult) {
+    fun selectSuggestion(suggestion: SuggestionItem) {
         selectedSuggestion = suggestion
         addressQuery = suggestion.name
         suggestions = emptyList()
@@ -92,60 +91,122 @@ class MainViewModel : ViewModel() {
         statusMessage = null
     }
 
-    private fun fetchSuggestions(query: String) {
-        viewModelScope.launch {
-            try {
-                val ak = BuildConfig.BAIDU_MAP_AK
-                val sk = BuildConfig.BAIDU_MAP_SK
-                // A common practice is to use a default region, e.g., "全国" (nationwide)
-                val region = "全国"
-                val sn = SnCalculator.calculateSn(ak, sk, query, region)
-                val response = RetrofitClient.instance.getSuggestions(query, region, ak, sn)
-                if (response.status == 0 && response.result != null) {
-                    suggestions = response.result
-                } else {
-                    Log.e("ViewModel", "Suggestion API Error: ${response.message}")
+    // 百度SDK实例
+    private var mSuggestionSearch: SuggestionSearch? = null
+    private var mGeoCoder: GeoCoder? = null
+
+    init {
+        initBaiduSDK()
+    }
+
+    private fun initBaiduSDK() {
+        // 初始化建议搜索
+        mSuggestionSearch = SuggestionSearch.newInstance()
+        mSuggestionSearch?.setOnGetSuggestionResultListener(object : OnGetSuggestionResultListener {
+            override fun onGetSuggestionResult(result: SuggestionResult?) {
+                if (result == null || result.error != SearchResult.ERRORNO.NO_ERROR) {
+                    Log.e("ViewModel", "Suggestion search failed: ${result?.error}")
+                    suggestions = emptyList()
+                    return
                 }
-            } catch (e: Exception) {
-                Log.e("ViewModel", "Suggestion Network Exception", e)
+
+                // 使用getAllSuggestions()获取建议列表
+                val allSuggestions = result.allSuggestions
+                if (allSuggestions == null || allSuggestions.isEmpty()) {
+                    suggestions = emptyList()
+                    return
+                }
+
+                val suggestionItems = allSuggestions.mapNotNull { info ->
+                    // 过滤掉没有坐标信息的建议（如纯文字联想）
+                    if (info.key != null && info.pt != null) {
+                        SuggestionItem(
+                            name = info.key,
+                            location = info.pt,
+                            uid = info.uid,
+                            city = info.city,
+                            district = info.district
+                        )
+                    } else {
+                        null
+                    }
+                }
+
+                suggestions = suggestionItems
+                Log.d("ViewModel", "Got ${suggestionItems.size} suggestions")
             }
-        }
+        })
+
+        // 初始化地理编码
+        mGeoCoder = GeoCoder.newInstance()
+    }
+
+    private fun fetchSuggestions(query: String) {
+        mSuggestionSearch?.requestSuggestion(
+            SuggestionSearchOption()
+                .city("全国")
+                .keyword(query)
+        )
     }
 
     fun startSimulation(context: Context) {
         statusMessage = "正在处理..."
-        var targetLat: Double? = null
-        var targetLng: Double? = null
-        var displayAddress = ""
 
         if (inputMode == InputMode.ADDRESS) {
-            val location = selectedSuggestion?.location
-            if (location == null) {
-                statusMessage = "请先从列表中选择一个有效的地址"
+            // 地址模式：使用百度SDK地理编码
+            if (addressQuery.isBlank()) {
+                statusMessage = "请输入地址"
                 return
             }
-            targetLat = location.lat
-            targetLng = location.lng
-            displayAddress = selectedSuggestion?.name ?: "未知地址"
-        } else { // COORDINATE mode
+
+            // 设置地理编码监听器
+            mGeoCoder?.setOnGetGeoCodeResultListener(object : OnGetGeoCoderResultListener {
+                override fun onGetGeoCodeResult(result: GeoCodeResult?) {
+                    if (result == null || result.error != SearchResult.ERRORNO.NO_ERROR) {
+                        statusMessage = "地址解析失败，请检查地址是否正确"
+                        return
+                    }
+
+                    val location = result.location
+                    if (location != null) {
+                        val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(location.longitude, location.latitude)
+                        MockLocationManager.start(context, latWgs, lngWgs)
+                        isSimulating = true
+                        statusMessage = "模拟成功: $addressQuery"
+                    } else {
+                        statusMessage = "无法获取坐标信息"
+                    }
+                }
+
+                override fun onGetReverseGeoCodeResult(result: ReverseGeoCodeResult?) {
+                    // 不需要逆地理编码
+                }
+            })
+
+            // 发起地理编码请求
+            mGeoCoder?.geocode(GeoCodeOption()
+                .city("全国")
+                .address(addressQuery))
+
+        } else {
+            // 坐标模式：直接使用输入的坐标
             val parts = coordinateInput.split(',', '，').map { it.trim() }
             if (parts.size != 2) {
                 statusMessage = "坐标格式不正确，请使用 '经度,纬度' 格式"
                 return
             }
-            targetLng = parts[0].toDoubleOrNull()
-            targetLat = parts[1].toDoubleOrNull()
+            val targetLng = parts[0].toDoubleOrNull()
+            val targetLat = parts[1].toDoubleOrNull()
             if (targetLat == null || targetLng == null) {
                 statusMessage = "经纬度必须是数字"
                 return
             }
-            displayAddress = coordinateInput
-        }
 
-        val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(targetLng, targetLat)
-        MockLocationManager.start(context, latWgs, lngWgs)
-        isSimulating = true
-        statusMessage = "模拟成功: $displayAddress"
+            val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(targetLng, targetLat)
+            MockLocationManager.start(context, latWgs, lngWgs)
+            isSimulating = true
+            statusMessage = "模拟成功: $coordinateInput"
+        }
     }
 
     fun stopSimulation(context: Context) {
@@ -156,6 +217,12 @@ class MainViewModel : ViewModel() {
         coordinateInput = ""
         selectedSuggestion = null
         suggestions = emptyList()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        mSuggestionSearch?.destroy()
+        mGeoCoder?.destroy()
     }
 }
 // endregion
@@ -169,7 +236,7 @@ class MainActivity : ComponentActivity() {
                 val viewModel: MainViewModel = viewModel()
                 if (viewModel.isSimulating) {
                     SimulatingScreen(
-                        address = if (viewModel.inputMode == InputMode.ADDRESS) viewModel.selectedSuggestion?.name ?: "未知" else viewModel.coordinateInput,
+                        address = if (viewModel.inputMode == InputMode.ADDRESS) viewModel.addressQuery else viewModel.coordinateInput,
                         onStopClick = { viewModel.stopSimulation(this) }
                     )
                 } else {
@@ -194,8 +261,10 @@ fun MainScreen(viewModel: MainViewModel) {
             Header()
             Spacer(Modifier.height(16.dp))
             StatusCheck()
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
             Controls(viewModel, onStartClick = { viewModel.startSimulation(context) })
+            Spacer(Modifier.height(16.dp))
+            BaiduMapView(modifier = Modifier.weight(1f), isSimulating = false)
         }
     }
 }
@@ -214,22 +283,7 @@ fun SimulatingScreen(address: String, onStopClick: () -> Unit) {
             Header()
             Spacer(Modifier.height(16.dp))
             SimulatingStatus(address)
-            // 暂时注释掉地图视图
-            // BaiduMapView(modifier = Modifier.weight(1f).padding(vertical = 16.dp), isSimulating = true)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(vertical = 16.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Gray.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "地图视图\n(暂时禁用)",
-                    color = Color.White,
-                    textAlign = TextAlign.Center
-                )
-            }
+            BaiduMapView(modifier = Modifier.weight(1f).padding(vertical = 16.dp), isSimulating = true)
             Button(
                 onClick = onStopClick,
                 shape = RoundedCornerShape(16.dp),
@@ -343,7 +397,7 @@ fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         Button(
             onClick = onStartClick,
-            enabled = (isAddressMode && viewModel.selectedSuggestion != null) || (!isAddressMode && viewModel.coordinateInput.isNotBlank()),
+            enabled = (isAddressMode && viewModel.addressQuery.isNotBlank()) || (!isAddressMode && viewModel.coordinateInput.isNotBlank()),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2)),
             modifier = Modifier
@@ -357,7 +411,7 @@ fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
 
 @Composable
 fun AddressInputWithSuggestions(viewModel: MainViewModel) {
-    Box {
+    Column {
         OutlinedTextField(
             value = viewModel.addressQuery,
             onValueChange = { viewModel.onAddressQueryChange(it) },
@@ -366,31 +420,40 @@ fun AddressInputWithSuggestions(viewModel: MainViewModel) {
             modifier = Modifier.fillMaxWidth(),
             colors = textFieldColors()
         )
+
         if (viewModel.suggestions.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
             LazyColumn(
                 modifier = Modifier
-                    .padding(top = 64.dp)
                     .fillMaxWidth()
                     .background(Color(0xFF2D3748), shape = RoundedCornerShape(8.dp))
                     .heightIn(max = 200.dp)
             ) {
                 items(viewModel.suggestions) { suggestion ->
+                    val displayText = if (suggestion.city != null && suggestion.district != null) {
+                        "${suggestion.name} (${suggestion.city}${suggestion.district})"
+                    } else {
+                        suggestion.name
+                    }
+
                     Text(
-                        text = "${suggestion.name} (${suggestion.city}${suggestion.district})",
+                        text = displayText,
                         color = Color.White,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { viewModel.selectSuggestion(suggestion) }
                             .padding(16.dp)
                     )
+
+                    if (suggestion != viewModel.suggestions.last()) {
+                        Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                    }
                 }
             }
         }
     }
 }
 
-// 暂时注释掉百度地图视图
-/*
 @Composable
 fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean) {
     val context = LocalContext.current
@@ -400,11 +463,22 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean) {
         factory = { mapView },
         modifier = modifier.clip(RoundedCornerShape(16.dp))
     ) { view ->
-        view.map.isMyLocationEnabled = true
-        // Further map configuration can be done here
+        view.map.apply {
+            // 启用定位图层
+            isMyLocationEnabled = true
+            // 设置地图类型为普通地图
+            mapType = BaiduMap.MAP_TYPE_NORMAL
+            // 启用缩放控件
+            uiSettings.isZoomControlsEnabled = true
+            // 启用指南针
+            uiSettings.isCompassEnabled = true
+            // 设置缩放级别
+            setMapStatus(MapStatusUpdateFactory.newMapStatus(
+                MapStatus.Builder().zoom(15f).build()
+            ))
+        }
     }
 }
-*/
 
 @Composable
 private fun textFieldColors() = OutlinedTextFieldDefaults.colors(

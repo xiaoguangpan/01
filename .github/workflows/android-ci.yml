@@ -20,25 +20,15 @@ jobs:
         distribution: 'temurin'
         cache: 'gradle'
 
-    - name: Generate Debug Keystore & Print SHA1
+    - name: Generate Keystores
       run: |
         keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug, O=Android, C=US" -storepass android -keypass android
-        echo "================= DEBUG SHA1 FINGERPRINT =================="
-        keytool -list -v -keystore debug.keystore -storepass android | grep SHA1 | head -1
-        echo "=========================================================="
-
-    - name: Generate Release Keystore & Print SHA1
-      run: |
         keytool -genkey -v -keystore release.keystore -alias releasekey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=LocationSimulator, O=LocationSimulator, C=CN" -storepass release123 -keypass release123
-        echo "================= RELEASE SHA1 FINGERPRINT =================="
-        keytool -list -v -keystore release.keystore -storepass release123 | grep SHA1 | head -1
-        echo "==========================================================="
 
     - name: Build with Gradle
       run: gradle build
       env:
         BAIDU_MAP_AK: ${{ secrets.BAIDU_MAP_AK }}
-        BAIDU_MAP_SK: ${{ secrets.BAIDU_MAP_SK }}
 
     - name: Build Debug APK
       run: gradle assembleDebug

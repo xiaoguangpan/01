@@ -18,9 +18,8 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-        // 从构建环境中读取API Key
+        // 从构建环境中读取API Key（只需要AK，不需要SK）
         buildConfigField("String", "BAIDU_MAP_AK", "\"${System.getenv("BAIDU_MAP_AK") ?: ""}\"")
-        buildConfigField("String", "BAIDU_MAP_SK", "\"${System.getenv("BAIDU_MAP_SK") ?: ""}\"")
         manifestPlaceholders["BAIDU_MAP_AK"] = System.getenv("BAIDU_MAP_AK") ?: ""
     }
 
@@ -79,14 +78,12 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
-    // Networking with Retrofit
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    // 移除了Retrofit依赖，使用百度SDK内置功能
 
-    // Baidu Maps SDK - 暂时注释掉，等仓库问题解决后再启用
-    // implementation("com.baidu.mapapi:map-sdk:7.5.0")
-    // implementation ("com.baidu.mapapi:base-sdk:7.5.0")
-    // implementation ("com.baidu.mapapi:search-sdk:7.5.0")
+    // Baidu Maps SDK
+    implementation("com.baidu.mapapi:map-sdk:7.5.0")
+    implementation ("com.baidu.mapapi:base-sdk:7.5.0")
+    implementation ("com.baidu.mapapi:search-sdk:7.5.0")
 
     // Testing
     testImplementation("junit:junit:4.13.2")
