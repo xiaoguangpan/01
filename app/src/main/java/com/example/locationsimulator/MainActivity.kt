@@ -303,7 +303,7 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                     addDebugMessage("没有找到地址建议")
                     Log.d("LocationViewModel", "No suggestions found")
                     suggestions = emptyList()
-                    return
+                    return@post
                 }
 
                 val suggestionItems = allSuggestions.mapNotNull { info ->
