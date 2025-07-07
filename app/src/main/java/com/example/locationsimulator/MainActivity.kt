@@ -16,6 +16,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -72,13 +75,27 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     var statusMessage by mutableStateOf<String?>(null)
         private set
 
+    // 调试信息
+    var debugMessages by mutableStateOf<List<String>>(emptyList())
+        private set
+
+    private fun addDebugMessage(message: String) {
+        val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+        val newMessage = "[$timestamp] $message"
+        debugMessages = (debugMessages + newMessage).takeLast(10) // 只保留最新10条
+        Log.d("LocationViewModel", newMessage)
+    }
+
     fun onAddressQueryChange(query: String) {
         addressQuery = query
         selectedSuggestion = null // Clear selection when user types
+        addDebugMessage("地址输入变化: '$query'")
         if (query.length > 1) {
+            addDebugMessage("开始搜索地址建议...")
             fetchSuggestions(query)
         } else {
             suggestions = emptyList()
+            addDebugMessage("清空地址建议列表")
         }
     }
 
@@ -166,8 +183,10 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     }
 
     private fun initLocationClient() {
+        addDebugMessage("开始初始化定位客户端...")
         try {
             mLocationClient = LocationClient(application)
+            addDebugMessage("LocationClient创建成功")
 
             // 配置定位参数
             val option = LocationClientOption().apply {
@@ -185,31 +204,40 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
             }
 
             mLocationClient?.locOption = option
+            addDebugMessage("定位参数配置完成")
             Log.d("LocationViewModel", "LocationClient initialized successfully")
         } catch (e: Exception) {
+            addDebugMessage("定位客户端初始化失败: ${e.message}")
             Log.e("LocationViewModel", "Failed to initialize LocationClient: ${e.message}")
             mLocationClient = null
         }
     }
 
     fun getCurrentLocation(context: Context) {
+        addDebugMessage("开始获取当前位置...")
+
         // 检查定位权限
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED) {
             statusMessage = "需要定位权限，请在设置中授予定位权限"
+            addDebugMessage("定位权限检查失败")
             return
         }
+        addDebugMessage("定位权限检查通过")
 
         if (mLocationClient == null) {
             statusMessage = "定位服务初始化失败，正在重新初始化..."
+            addDebugMessage("定位客户端为空，重新初始化...")
             initLocationClient()
             if (mLocationClient == null) {
                 statusMessage = "定位服务不可用"
+                addDebugMessage("定位客户端重新初始化失败")
                 return
             }
         }
 
         statusMessage = "正在获取当前位置..."
+        addDebugMessage("发起定位请求...")
         Log.d("LocationViewModel", "Starting location request")
 
         // 设置定位监听器
@@ -267,27 +295,38 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     }
 
     private fun fetchSuggestions(query: String) {
+        addDebugMessage("发起地址建议搜索: '$query'")
         Log.d("LocationViewModel", "Fetching suggestions for: $query")
         try {
+            if (mSuggestionSearch == null) {
+                addDebugMessage("SuggestionSearch未初始化")
+                return
+            }
+
             mSuggestionSearch?.requestSuggestion(
                 SuggestionSearchOption()
                     .city("全国")
                     .keyword(query)
             )
+            addDebugMessage("地址建议搜索请求已发送")
             Log.d("LocationViewModel", "Suggestion request sent successfully")
         } catch (e: Exception) {
+            addDebugMessage("地址建议搜索失败: ${e.message}")
             Log.e("LocationViewModel", "Error fetching suggestions: ${e.message}")
             suggestions = emptyList()
         }
     }
 
     fun startSimulation(context: Context) {
+        addDebugMessage("开始模拟定位...")
         statusMessage = "正在处理..."
 
         if (inputMode == InputMode.ADDRESS) {
             // 地址模式：使用百度SDK地理编码
+            addDebugMessage("使用地址模式: '$addressQuery'")
             if (addressQuery.isBlank()) {
                 statusMessage = "请输入地址"
+                addDebugMessage("地址为空，停止处理")
                 return
             }
 
@@ -349,36 +388,47 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
 
         } else {
             // 坐标模式：直接使用输入的坐标
+            addDebugMessage("使用坐标模式: '$coordinateInput'")
             Log.d("LocationViewModel", "Processing coordinate input: $coordinateInput")
 
             try {
                 val parts = coordinateInput.split(',', '，').map { it.trim() }
+                addDebugMessage("坐标分割结果: ${parts.size}个部分")
+
                 if (parts.size != 2) {
                     statusMessage = "坐标格式不正确，请使用 '经度,纬度' 格式"
+                    addDebugMessage("坐标格式错误: 需要2个部分，实际${parts.size}个")
                     return
                 }
 
                 val targetLng = parts[0].toDoubleOrNull()
                 val targetLat = parts[1].toDoubleOrNull()
+                addDebugMessage("坐标解析: 经度=$targetLng, 纬度=$targetLat")
 
                 if (targetLat == null || targetLng == null) {
                     statusMessage = "经纬度必须是数字"
+                    addDebugMessage("坐标解析失败: 无法转换为数字")
                     return
                 }
 
                 // 验证坐标范围
                 if (targetLat < -90 || targetLat > 90) {
                     statusMessage = "纬度必须在-90到90之间"
+                    addDebugMessage("纬度超出范围: $targetLat")
                     return
                 }
                 if (targetLng < -180 || targetLng > 180) {
                     statusMessage = "经度必须在-180到180之间"
+                    addDebugMessage("经度超出范围: $targetLng")
                     return
                 }
 
+                addDebugMessage("开始坐标转换...")
                 Log.d("LocationViewModel", "Converting coordinates: lng=$targetLng, lat=$targetLat")
                 val (lngWgs, latWgs) = CoordinateConverter.bd09ToWgs84(targetLng, targetLat)
+                addDebugMessage("坐标转换完成: WGS84($lngWgs, $latWgs)")
 
+                addDebugMessage("启动模拟定位...")
                 Log.d("LocationViewModel", "Starting mock location: lng=$lngWgs, lat=$latWgs")
                 MockLocationManager.start(context, latWgs, lngWgs)
                 isSimulating = true
@@ -499,11 +549,16 @@ fun MainScreen(viewModel: MainViewModel) {
                 .padding(24.dp)
         ) {
             Header()
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
+
+            // 调试信息面板
+            DebugPanel(viewModel)
+            Spacer(Modifier.height(12.dp))
+
             StatusCheck()
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
             Controls(viewModel, onStartClick = { viewModel.startSimulation(context) })
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
             BaiduMapView(modifier = Modifier.weight(1f), isSimulating = false)
         }
     }
@@ -547,6 +602,46 @@ fun Header() {
         fontWeight = FontWeight.Bold,
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+@Composable
+fun DebugPanel(viewModel: MainViewModel) {
+    if (viewModel.debugMessages.isNotEmpty()) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 120.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF374151))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+            ) {
+                Text(
+                    "🔧 调试信息",
+                    color = Color.Yellow,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(8.dp))
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    reverseLayout = true // 最新消息在顶部
+                ) {
+                    items(viewModel.debugMessages.reversed()) { message ->
+                        Text(
+                            text = message,
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(vertical = 1.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

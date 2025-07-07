@@ -71,6 +71,8 @@ object MockLocationManager {
 
     fun isCurrentAppSelectedAsMockLocationApp(context: Context): Boolean {
         return try {
+            Log.d("MockLocationManager", "检查模拟定位应用状态...")
+
             // Android 6.0+ 检查应用是否有系统级权限
             val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
             val mode = appOps.checkOpNoThrow(
@@ -78,16 +80,33 @@ object MockLocationManager {
                 android.os.Process.myUid(),
                 context.packageName
             )
-            mode == android.app.AppOpsManager.MODE_ALLOWED
-        } catch (e: Exception) {
-            // 如果检查失败，尝试其他方法
+
+            val isAllowed = mode == android.app.AppOpsManager.MODE_ALLOWED
+            Log.d("MockLocationManager", "AppOps检查结果: mode=$mode, isAllowed=$isAllowed")
+
+            if (isAllowed) {
+                return true
+            }
+
+            // 如果AppOps检查失败，尝试其他方法
             try {
                 val selectedApp = Settings.Secure.getString(context.contentResolver, "mock_location_app")
-                selectedApp == context.packageName
+                Log.d("MockLocationManager", "Settings检查结果: selectedApp=$selectedApp, packageName=${context.packageName}")
+                val isSelected = selectedApp == context.packageName
+                if (isSelected) return true
             } catch (e2: Exception) {
-                // 最后尝试检查是否在开发者选项中
-                Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
+                Log.w("MockLocationManager", "Settings检查失败: ${e2.message}")
             }
+
+            // 最后检查开发者选项是否开启
+            val devEnabled = Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) != 0
+            Log.d("MockLocationManager", "开发者选项状态: $devEnabled")
+
+            return false // 明确返回false，不再假设已设置
+
+        } catch (e: Exception) {
+            Log.e("MockLocationManager", "检查模拟定位应用状态失败: ${e.message}")
+            return false
         }
     }
 }
