@@ -108,6 +108,24 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         return debugMessages.joinToString("\n")
     }
 
+    // 检查和重新初始化SDK
+    fun checkAndReinitSDK() {
+        addDebugMessage("🔄 检查SDK状态并重新初始化...")
+
+        // 重新初始化建议搜索
+        try {
+            mSuggestionSearch?.destroy()
+            mSuggestionSearch = null
+            addDebugMessage("🗑️ 旧的SuggestionSearch已清理")
+        } catch (e: Exception) {
+            addDebugMessage("⚠️ 清理旧SDK时出错: ${e.message}")
+        }
+
+        // 重新初始化
+        initBaiduSDK()
+        addDebugMessage("✅ SDK重新初始化完成")
+    }
+
     fun onAddressQueryChange(query: String) {
         addressQuery = query
         selectedSuggestion = null // Clear selection when user types
@@ -148,8 +166,37 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     }
 
     private fun initBaiduSDK() {
-        // 初始化建议搜索
-        mSuggestionSearch = SuggestionSearch.newInstance()
+        addDebugMessage("🔧 开始初始化百度SDK...")
+
+        try {
+            // 检查API Key是否设置
+            val apiKey = application.packageManager.getApplicationInfo(
+                application.packageName,
+                android.content.pm.PackageManager.GET_META_DATA
+            ).metaData?.getString("com.baidu.lbsapi.API_KEY")
+
+            if (apiKey.isNullOrEmpty()) {
+                addDebugMessage("❌ 百度API Key未设置或为空")
+            } else {
+                addDebugMessage("✅ 百度API Key已设置: ${apiKey.take(10)}...")
+            }
+
+            // 初始化建议搜索
+            addDebugMessage("🔍 初始化地址建议搜索...")
+            mSuggestionSearch = SuggestionSearch.newInstance()
+
+            if (mSuggestionSearch == null) {
+                addDebugMessage("❌ SuggestionSearch初始化失败")
+                return
+            } else {
+                addDebugMessage("✅ SuggestionSearch初始化成功")
+            }
+
+        } catch (e: Exception) {
+            addDebugMessage("❌ SDK初始化异常: ${e.message}")
+            return
+        }
+
         mSuggestionSearch?.setOnGetSuggestionResultListener(object : OnGetSuggestionResultListener {
             override fun onGetSuggestionResult(result: SuggestionResult?) {
                 addDebugMessage("收到地址建议搜索结果")
@@ -163,8 +210,25 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                 }
 
                 if (result.error != SearchResult.ERRORNO.NO_ERROR) {
-                    addDebugMessage("搜索失败: ${result.error}")
+                    val errorMsg = when (result.error) {
+                        SearchResult.ERRORNO.PERMISSION_UNFINISHED -> {
+                            "权限未完成初始化 - 尝试重新初始化SDK"
+                        }
+                        SearchResult.ERRORNO.NETWORK_ERROR -> "网络错误 - 请检查网络连接"
+                        SearchResult.ERRORNO.NETWORK_TIMEOUT -> "网络超时 - 请重试"
+                        SearchResult.ERRORNO.PERMISSION_DENIED -> "权限被拒绝 - 请检查API Key权限"
+                        SearchResult.ERRORNO.KEY_ERROR -> "API Key错误 - 请检查Key是否正确"
+                        else -> "未知错误: ${result.error}"
+                    }
+                    addDebugMessage("❌ 搜索失败: $errorMsg")
                     Log.e("LocationViewModel", "Suggestion search failed with error: ${result.error}")
+
+                    // 如果是权限未完成错误，尝试重新初始化SDK
+                    if (result.error == SearchResult.ERRORNO.PERMISSION_UNFINISHED) {
+                        addDebugMessage("🔄 检测到PERMISSION_UNFINISHED，尝试重新初始化SDK...")
+                        checkAndReinitSDK()
+                    }
+
                     suggestions = emptyList()
                     return
                 }
@@ -592,7 +656,7 @@ fun MainScreen(viewModel: MainViewModel) {
             Spacer(Modifier.height(12.dp))
             Controls(viewModel, onStartClick = { viewModel.startSimulation(context) })
             Spacer(Modifier.height(12.dp))
-            BaiduMapView(modifier = Modifier.weight(1f), isSimulating = false)
+            BaiduMapView(modifier = Modifier.weight(1f), isSimulating = false, viewModel = viewModel)
         }
     }
 }
@@ -700,6 +764,14 @@ fun DebugPanel(viewModel: MainViewModel) {
                         ) {
                             Text("清除", fontSize = 12.sp)
                         }
+
+                        // 重新初始化SDK按钮
+                        TextButton(
+                            onClick = { viewModel.checkAndReinitSDK() },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Magenta)
+                        ) {
+                            Text("重置SDK", fontSize = 12.sp)
+                        }
                     }
                 }
 
@@ -732,24 +804,25 @@ fun StatusCheck(viewModel: MainViewModel) {
     var isDeveloperModeEnabled by remember { mutableStateOf(false) }
     var isMockLocationAppSet by remember { mutableStateOf(false) }
 
-    // 使用 LaunchedEffect 来定期检查状态
+    // 使用 LaunchedEffect 来检查状态（减少频率）
     LaunchedEffect(Unit) {
+        // 初始检查
+        isDeveloperModeEnabled = try {
+            Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
+        } catch (e: Exception) {
+            false
+        }
+        isMockLocationAppSet = MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
+
+        // 每30秒检查一次，减少调试信息
         while (true) {
-            viewModel.addDebugMessage("检查开发者模式状态...")
+            delay(30000)
             isDeveloperModeEnabled = try {
-                val enabled = Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
-                viewModel.addDebugMessage("开发者模式: ${if (enabled) "已开启" else "未开启"}")
-                enabled
+                Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
             } catch (e: Exception) {
-                viewModel.addDebugMessage("开发者模式检查失败: ${e.message}")
                 false
             }
-
-            viewModel.addDebugMessage("检查模拟定位应用状态...")
             isMockLocationAppSet = MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
-            viewModel.addDebugMessage("模拟定位应用: ${if (isMockLocationAppSet) "已设置" else "未设置"}")
-
-            delay(3000) // 每3秒检查一次
         }
     }
 
@@ -920,7 +993,7 @@ fun AddressInputWithSuggestions(viewModel: MainViewModel) {
 }
 
 @Composable
-fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean) {
+fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean, viewModel: MainViewModel? = null) {
     val context = LocalContext.current
     val mapView = remember { MapView(context) }
 
@@ -929,11 +1002,15 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean) {
         modifier = modifier.clip(RoundedCornerShape(16.dp))
     ) { view ->
         view.map.apply {
+            viewModel?.addDebugMessage("🗺️ 初始化百度地图...")
+
             // 启用定位图层
             isMyLocationEnabled = true
+            viewModel?.addDebugMessage("✅ 定位图层已启用")
 
             // 设置地图类型为卫星图（更暗的效果）
             mapType = BaiduMap.MAP_TYPE_SATELLITE
+            viewModel?.addDebugMessage("🛰️ 地图类型设置为卫星图")
 
             // 获取UI设置并配置
             val uiSettings = uiSettings
@@ -945,12 +1022,14 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean) {
             uiSettings.setScrollGesturesEnabled(true)
             // 启用旋转手势
             uiSettings.setRotateGesturesEnabled(true)
+            viewModel?.addDebugMessage("✅ 地图手势控制已配置")
 
             // 隐藏百度logo（如果可能）
             try {
                 view.showZoomControls(false)
+                viewModel?.addDebugMessage("✅ 缩放控件已隐藏")
             } catch (e: Exception) {
-                // 忽略错误
+                viewModel?.addDebugMessage("⚠️ 隐藏缩放控件失败: ${e.message}")
             }
 
             // 设置缩放级别和默认位置（北京）
@@ -960,6 +1039,7 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean) {
                     .zoom(15f)
                     .build()
             ))
+            viewModel?.addDebugMessage("📍 地图默认位置设置为北京")
         }
     }
 }
