@@ -79,6 +79,12 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     var coordinateInput by mutableStateOf("")
         private set
 
+    var currentLatitude by mutableStateOf(39.915) // 默认北京纬度
+        private set
+
+    var currentLongitude by mutableStateOf(116.404) // 默认北京经度
+        private set
+
     var statusMessage by mutableStateOf<String?>(null)
         private set
 
@@ -374,6 +380,8 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                         // GPS定位成功
                         val address = location.addrStr ?: "未知地址"
                         addressQuery = address
+                        currentLatitude = location.latitude
+                        currentLongitude = location.longitude
                         statusMessage = "定位成功：$address"
                         Log.d("LocationViewModel", "GPS location: $address")
                     }
@@ -381,6 +389,8 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                         // 网络定位成功
                         val address = location.addrStr ?: "未知地址"
                         addressQuery = address
+                        currentLatitude = location.latitude
+                        currentLongitude = location.longitude
                         statusMessage = "定位成功：$address"
                         Log.d("LocationViewModel", "Network location: $address")
                     }
@@ -388,6 +398,8 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                         // 离线定位成功
                         val address = location.addrStr ?: "未知地址"
                         addressQuery = address
+                        currentLatitude = location.latitude
+                        currentLongitude = location.longitude
                         statusMessage = "离线定位成功：$address"
                         Log.d("LocationViewModel", "Offline location: $address")
                     }
@@ -1086,7 +1098,6 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean, viewModel
 
                 isInitialized = true
             }
-        }
         }
     }
 }
