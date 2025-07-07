@@ -326,6 +326,7 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                 suggestions = suggestionItems
                 addDebugMessage("建议列表更新完成，共${suggestionItems.size}项")
                 Log.d("LocationViewModel", "Final suggestions count: ${suggestionItems.size}")
+                }
             }
         })
 
