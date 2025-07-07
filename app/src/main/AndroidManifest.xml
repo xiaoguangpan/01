@@ -2,28 +2,54 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- 网络权限 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- 定位权限 -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_MOCK_LOCATION"
         tools:ignore="ProtectedPermissions" />
+
+    <!-- 百度地图SDK需要的权限 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!-- 可选权限 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name=".MainApplication"
         android:allowBackup="true"
         android:label="Location Simulator"
         android:supportsRtl="true"
-        tools:targetApi="31">
+        tools:targetApi="31"
+        tools:replace="android:label,android:allowBackup,android:supportsRtl"
+        tools:ignore="AllowBackup">
 
         <meta-data
             android:name="com.baidu.lbsapi.API_KEY"
             android:value="${BAIDU_MAP_AK}"
             tools:replace="android:value" />
 
+        <!-- 百度地图SDK需要的service -->
+        <service
+            android:name="com.baidu.location.f"
+            android:enabled="true"
+            android:process=":remote"
+            tools:ignore="MissingClass" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="Location Simulator">
+            android:label="Location Simulator"
+            tools:replace="android:label">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
