@@ -468,10 +468,18 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean) {
             isMyLocationEnabled = true
             // 设置地图类型为普通地图
             mapType = BaiduMap.MAP_TYPE_NORMAL
-            // 启用缩放控件
-            uiSettings.isZoomControlsEnabled = true
+
+            // 获取UI设置并配置
+            val uiSettings = uiSettings
+            // 启用缩放手势
+            uiSettings.setZoomGesturesEnabled(true)
             // 启用指南针
-            uiSettings.isCompassEnabled = true
+            uiSettings.setCompassEnabled(true)
+            // 启用平移手势
+            uiSettings.setScrollGesturesEnabled(true)
+            // 启用旋转手势
+            uiSettings.setRotateGesturesEnabled(true)
+
             // 设置缩放级别
             setMapStatus(MapStatusUpdateFactory.newMapStatus(
                 MapStatus.Builder().zoom(15f).build()
