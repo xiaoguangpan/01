@@ -5,6 +5,7 @@ import android.location.Location
 import android.location.LocationManager
 import android.os.SystemClock
 import android.provider.Settings
+import android.util.Log
 
 object MockLocationManager {
     private const val PROVIDER_NAME = LocationManager.GPS_PROVIDER
