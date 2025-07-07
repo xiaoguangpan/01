@@ -19,6 +19,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.Arrangement
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -79,11 +85,27 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     var debugMessages by mutableStateOf<List<String>>(emptyList())
         private set
 
+    var isDebugExpanded by mutableStateOf(false)
+        private set
+
     private fun addDebugMessage(message: String) {
         val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
         val newMessage = "[$timestamp] $message"
-        debugMessages = (debugMessages + newMessage).takeLast(10) // 只保留最新10条
+        debugMessages = (debugMessages + newMessage).takeLast(20) // 保留最新20条
         Log.d("LocationViewModel", newMessage)
+    }
+
+    fun toggleDebugExpanded() {
+        isDebugExpanded = !isDebugExpanded
+    }
+
+    fun clearDebugMessages() {
+        debugMessages = emptyList()
+        addDebugMessage("调试信息已清除")
+    }
+
+    fun getDebugText(): String {
+        return debugMessages.joinToString("\n")
     }
 
     fun onAddressQueryChange(query: String) {
@@ -130,15 +152,18 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         mSuggestionSearch = SuggestionSearch.newInstance()
         mSuggestionSearch?.setOnGetSuggestionResultListener(object : OnGetSuggestionResultListener {
             override fun onGetSuggestionResult(result: SuggestionResult?) {
+                addDebugMessage("收到地址建议搜索结果")
                 Log.d("LocationViewModel", "Received suggestion result: $result")
 
                 if (result == null) {
+                    addDebugMessage("搜索结果为空")
                     Log.e("LocationViewModel", "Suggestion result is null")
                     suggestions = emptyList()
                     return
                 }
 
                 if (result.error != SearchResult.ERRORNO.NO_ERROR) {
+                    addDebugMessage("搜索失败: ${result.error}")
                     Log.e("LocationViewModel", "Suggestion search failed with error: ${result.error}")
                     suggestions = emptyList()
                     return
@@ -146,9 +171,11 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
 
                 // 使用getAllSuggestions()获取建议列表
                 val allSuggestions = result.allSuggestions
+                addDebugMessage("获取到${allSuggestions?.size ?: 0}个建议")
                 Log.d("LocationViewModel", "All suggestions count: ${allSuggestions?.size ?: 0}")
 
                 if (allSuggestions == null || allSuggestions.isEmpty()) {
+                    addDebugMessage("没有找到地址建议")
                     Log.d("LocationViewModel", "No suggestions found")
                     suggestions = emptyList()
                     return
@@ -156,6 +183,7 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
 
                 val suggestionItems = allSuggestions.mapNotNull { info ->
                     Log.d("LocationViewModel", "Processing suggestion: key=${info.key}, pt=${info.pt}")
+                    addDebugMessage("处理建议: ${info.key}")
                     // 包含所有建议，不仅仅是有坐标的
                     if (info.key != null) {
                         SuggestionItem(
@@ -171,6 +199,7 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                 }
 
                 suggestions = suggestionItems
+                addDebugMessage("建议列表更新完成，共${suggestionItems.size}项")
                 Log.d("LocationViewModel", "Final suggestions count: ${suggestionItems.size}")
             }
         })
@@ -185,6 +214,10 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     private fun initLocationClient() {
         addDebugMessage("开始初始化定位客户端...")
         try {
+            // 设置隐私合规
+            LocationClient.setAgreePrivacy(true)
+            addDebugMessage("已设置隐私合规同意")
+
             mLocationClient = LocationClient(application)
             addDebugMessage("LocationClient创建成功")
 
@@ -555,7 +588,7 @@ fun MainScreen(viewModel: MainViewModel) {
             DebugPanel(viewModel)
             Spacer(Modifier.height(12.dp))
 
-            StatusCheck()
+            StatusCheck(viewModel)
             Spacer(Modifier.height(12.dp))
             Controls(viewModel, onStartClick = { viewModel.startSimulation(context) })
             Spacer(Modifier.height(12.dp))
@@ -606,11 +639,16 @@ fun Header() {
 
 @Composable
 fun DebugPanel(viewModel: MainViewModel) {
+    val context = LocalContext.current
+    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+
     if (viewModel.debugMessages.isNotEmpty()) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 120.dp),
+                .heightIn(
+                    max = if (viewModel.isDebugExpanded) 300.dp else 120.dp
+                ),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF374151))
         ) {
             Column(
@@ -618,12 +656,53 @@ fun DebugPanel(viewModel: MainViewModel) {
                     .fillMaxWidth()
                     .padding(12.dp)
             ) {
-                Text(
-                    "🔧 调试信息",
-                    color = Color.Yellow,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                // 标题栏和操作按钮
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "🔧 调试信息 (${viewModel.debugMessages.size})",
+                        color = Color.Yellow,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Row {
+                        // 展开/收起按钮
+                        TextButton(
+                            onClick = { viewModel.toggleDebugExpanded() },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Cyan)
+                        ) {
+                            Text(
+                                if (viewModel.isDebugExpanded) "收起" else "展开",
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        // 复制按钮
+                        TextButton(
+                            onClick = {
+                                val clipData = ClipData.newPlainText("调试信息", viewModel.getDebugText())
+                                clipboardManager.setPrimaryClip(clipData)
+                                // 可以添加Toast提示
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Green)
+                        ) {
+                            Text("复制", fontSize = 12.sp)
+                        }
+
+                        // 清除按钮
+                        TextButton(
+                            onClick = { viewModel.clearDebugMessages() },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
+                        ) {
+                            Text("清除", fontSize = 12.sp)
+                        }
+                    }
+                }
+
                 Spacer(Modifier.height(8.dp))
 
                 LazyColumn(
@@ -634,8 +713,9 @@ fun DebugPanel(viewModel: MainViewModel) {
                         Text(
                             text = message,
                             color = Color.White,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(vertical = 1.dp)
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(vertical = 1.dp),
+                            lineHeight = 14.sp
                         )
                     }
                 }
@@ -645,7 +725,7 @@ fun DebugPanel(viewModel: MainViewModel) {
 }
 
 @Composable
-fun StatusCheck() {
+fun StatusCheck(viewModel: MainViewModel) {
     val context = LocalContext.current
 
     // 使用 remember 和 mutableStateOf 来实现状态更新
@@ -654,13 +734,23 @@ fun StatusCheck() {
 
     // 使用 LaunchedEffect 来定期检查状态
     LaunchedEffect(Unit) {
-        isDeveloperModeEnabled = try {
-            Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
-        } catch (e: Exception) {
-            false
-        }
+        while (true) {
+            viewModel.addDebugMessage("检查开发者模式状态...")
+            isDeveloperModeEnabled = try {
+                val enabled = Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
+                viewModel.addDebugMessage("开发者模式: ${if (enabled) "已开启" else "未开启"}")
+                enabled
+            } catch (e: Exception) {
+                viewModel.addDebugMessage("开发者模式检查失败: ${e.message}")
+                false
+            }
 
-        isMockLocationAppSet = MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
+            viewModel.addDebugMessage("检查模拟定位应用状态...")
+            isMockLocationAppSet = MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
+            viewModel.addDebugMessage("模拟定位应用: ${if (isMockLocationAppSet) "已设置" else "未设置"}")
+
+            delay(3000) // 每3秒检查一次
+        }
     }
 
     Column(

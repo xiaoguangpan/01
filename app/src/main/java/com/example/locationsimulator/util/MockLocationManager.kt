@@ -11,39 +11,58 @@ object MockLocationManager {
     private const val PROVIDER_NAME = LocationManager.GPS_PROVIDER
 
     fun start(context: Context, lat: Double, lng: Double) {
-        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        try {
+            Log.d("MockLocationManager", "开始设置模拟定位: $lat, $lng")
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
-        // 移除旧的，以防万一
-        if (locationManager.getProvider(PROVIDER_NAME) != null) {
-            locationManager.removeTestProvider(PROVIDER_NAME)
+            // 移除旧的，以防万一
+            try {
+                if (locationManager.getProvider(PROVIDER_NAME) != null) {
+                    locationManager.removeTestProvider(PROVIDER_NAME)
+                    Log.d("MockLocationManager", "移除已存在的测试提供者")
+                }
+            } catch (e: Exception) {
+                Log.d("MockLocationManager", "没有需要移除的测试提供者: ${e.message}")
+            }
+
+            // 添加测试提供者
+            locationManager.addTestProvider(
+                PROVIDER_NAME,
+                false, // requiresNetwork
+                false, // requiresSatellite
+                false, // requiresCell
+                false, // hasMonetaryCost
+                true,  // supportsAltitude
+                true,  // supportsSpeed
+                true,  // supportsBearing
+                0,     // powerRequirement
+                5      // accuracy
+            )
+            Log.d("MockLocationManager", "测试提供者添加成功")
+
+            locationManager.setTestProviderEnabled(PROVIDER_NAME, true)
+            Log.d("MockLocationManager", "测试提供者启用成功")
+
+            // 创建并设置位置信息
+            val mockLocation = Location(PROVIDER_NAME).apply {
+                latitude = lat
+                longitude = lng
+                altitude = 0.0
+                accuracy = 1.0f
+                time = System.currentTimeMillis()
+                elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+            }
+
+            locationManager.setTestProviderLocation(PROVIDER_NAME, mockLocation)
+            Log.d("MockLocationManager", "模拟位置设置成功: $lat, $lng")
+
+        } catch (e: SecurityException) {
+            Log.e("MockLocationManager", "权限不足，无法设置模拟位置: ${e.message}")
+            throw e
+        } catch (e: Exception) {
+            Log.e("MockLocationManager", "设置模拟位置失败: ${e.message}")
+            throw e
         }
-
-        // 添加测试提供者
-        locationManager.addTestProvider(
-            PROVIDER_NAME,
-            false, // requiresNetwork
-            false, // requiresSatellite
-            false, // requiresCell
-            false, // hasMonetaryCost
-            true,  // supportsAltitude
-            true,  // supportsSpeed
-            true,  // supportsBearing
-            0,     // powerRequirement
-            5      // accuracy
-        )
-        locationManager.setTestProviderEnabled(PROVIDER_NAME, true)
-
-        // 创建并设置位置信息
-        val mockLocation = Location(PROVIDER_NAME).apply {
-            latitude = lat
-            longitude = lng
-            altitude = 0.0
-            accuracy = 1.0f
-            time = System.currentTimeMillis()
-            elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
-        }
-
-        locationManager.setTestProviderLocation(PROVIDER_NAME, mockLocation)
     }
 
     fun stop(context: Context) {
