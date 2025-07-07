@@ -24,7 +24,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.Arrangement
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.Context
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -56,6 +55,7 @@ import com.example.locationsimulator.ui.theme.LocationSimulatorTheme
 import com.example.locationsimulator.util.CoordinateConverter
 import com.example.locationsimulator.util.MockLocationManager
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 // region ViewModel
 enum class InputMode { ADDRESS, COORDINATE }
@@ -88,7 +88,7 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     var isDebugExpanded by mutableStateOf(false)
         private set
 
-    private fun addDebugMessage(message: String) {
+    fun addDebugMessage(message: String) {
         val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
         val newMessage = "[$timestamp] $message"
         debugMessages = (debugMessages + newMessage).takeLast(20) // 保留最新20条
@@ -640,7 +640,7 @@ fun Header() {
 @Composable
 fun DebugPanel(viewModel: MainViewModel) {
     val context = LocalContext.current
-    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clipboardManager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
 
     if (viewModel.debugMessages.isNotEmpty()) {
         Card(
