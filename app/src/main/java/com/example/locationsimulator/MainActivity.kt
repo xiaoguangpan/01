@@ -229,6 +229,7 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
             currentLongitude = location.longitude
             addDebugMessage("🗺️ 地图位置已更新: BD09(${location.longitude}, ${location.latitude})")
             addDebugMessage("📍 选择地址: ${suggestion.name}")
+            addDebugMessage("🎯 建议坐标精度: 经度=${location.longitude}, 纬度=${location.latitude}")
         }
     }
 
@@ -693,13 +694,42 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         statusMessage = "正在处理..."
 
         if (inputMode == InputMode.ADDRESS) {
-            // 地址模式：使用百度SDK地理编码
+            // 地址模式：优先使用已选择建议的坐标，避免重复地理编码
             addDebugMessage("使用地址模式: '$addressQuery'")
             if (addressQuery.isBlank()) {
                 statusMessage = "请输入地址"
                 addDebugMessage("地址为空，停止处理")
                 return
             }
+
+            // 🎯 关键修复：检查是否已有选择的建议坐标
+            selectedSuggestion?.location?.let { location ->
+                addDebugMessage("🎯 使用已选择建议的坐标，避免重复地理编码")
+                addDebugMessage("🏷️ 选择的地址: ${selectedSuggestion?.name}")
+                addDebugMessage("📍 建议坐标: BD09(${location.longitude}, ${location.latitude})")
+                addDebugMessage("🔧 坐标来源: 地址搜索建议API")
+
+                // 直接使用建议的坐标进行模拟定位
+                val (wgsLng, wgsLat) = CoordinateConverter.bd09ToWgs84(location.longitude, location.latitude)
+                addDebugMessage("🌍 转换为WGS84坐标: ($wgsLng, $wgsLat)")
+                addDebugMessage("🎯 坐标传递链路: 建议选择 → 直接使用 → 模拟定位")
+
+                try {
+                    MockLocationManager.start(context, wgsLat, wgsLng)
+                    statusMessage = "模拟定位已启动"
+                    addDebugMessage("✅ 模拟定位启动成功")
+                    addDebugMessage("📱 最终GPS坐标: WGS84($wgsLng, $wgsLat)")
+                    addDebugMessage("🎉 位置一致性保证: 选择位置 = 模拟位置")
+                } catch (e: Exception) {
+                    statusMessage = "模拟定位启动失败: ${e.message}"
+                    addDebugMessage("❌ 模拟定位启动失败: ${e.message}")
+                }
+                return
+            }
+
+            // 如果没有建议坐标，才使用地理编码API
+            addDebugMessage("⚠️ 没有建议坐标，使用地理编码API进行地址解析")
+            addDebugMessage("🔧 坐标来源: 地理编码API（可能与建议不同）")
 
             // 设置地理编码监听器
             mGeoCoder?.setOnGetGeoCodeResultListener(object : OnGetGeoCoderResultListener {
@@ -735,8 +765,11 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
 
                         addDebugMessage("🚀 启动全面系统级模拟定位...")
                         addDebugMessage("📍 地址: $addressQuery")
-                        addDebugMessage("📍 地图坐标: BD09(${location.longitude}, ${location.latitude})")
-                        addDebugMessage("📍 模拟坐标: WGS84($lngWgs, $latWgs)")
+                        addDebugMessage("🔧 坐标来源: 地理编码API")
+                        addDebugMessage("⚠️ 注意: 地理编码可能与建议坐标不同")
+                        addDebugMessage("📍 地理编码坐标: BD09(${location.longitude}, ${location.latitude})")
+                        addDebugMessage("🌍 转换为WGS84坐标: ($lngWgs, $latWgs)")
+                        addDebugMessage("🎯 坐标传递链路: 地理编码API → 坐标转换 → 模拟定位")
 
                         try {
                             MockLocationManager.start(context, latWgs, lngWgs)
@@ -752,7 +785,8 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                             addDebugMessage("✅ 系统级模拟定位启动成功")
                             addDebugMessage("📱 已覆盖所有定位提供者 (GPS/网络/被动)")
                             addDebugMessage("🎯 地图坐标保持: BD09(${location.longitude}, ${location.latitude})")
-                            addDebugMessage("🎯 模拟坐标设置: WGS84($lngWgs, $latWgs)")
+                            addDebugMessage("📱 最终GPS坐标: WGS84($lngWgs, $latWgs)")
+                            addDebugMessage("⚠️ 警告: 使用地理编码API，位置可能与建议不同")
 
                             isSimulating = true
                             statusMessage = "模拟成功: $addressQuery"
