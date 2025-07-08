@@ -282,18 +282,19 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         try {
             addDebugMessage("🔐 检查SHA1安全码配置...")
 
-            val sha1Debug = SHA1Util.getDebugSHA1(application)
-            val sha1Release = SHA1Util.getReleaseSHA1(application)
+            val sha1 = SHA1Util.getAppSHA1(application)
             val packageName = application.packageName
+            val securityCode = SHA1Util.generateBaiduSecurityCode(application)
 
             addDebugMessage("📋 当前包名: $packageName")
-            addDebugMessage("🔧 Debug SHA1: $sha1Debug")
-            addDebugMessage("🚀 Release SHA1: $sha1Release")
+            addDebugMessage("🔧 当前SHA1: $sha1")
+            addDebugMessage("🔐 百度安全码: $securityCode")
 
-            addDebugMessage("💡 百度开发者平台安全码格式:")
-            addDebugMessage("   Debug: $sha1Debug;$packageName;应用名称")
-            addDebugMessage("   Release: $sha1Release;$packageName;应用名称")
-            addDebugMessage("🌐 配置地址: https://lbsyun.baidu.com/apiconsole/key")
+            addDebugMessage("💡 百度开发者平台配置:")
+            addDebugMessage("   1. 访问: https://lbsyun.baidu.com/apiconsole/key")
+            addDebugMessage("   2. 找到你的应用")
+            addDebugMessage("   3. 在Android SDK安全码中填入: $securityCode")
+            addDebugMessage("⚠️ 注意: Debug和Release版本的SHA1可能不同")
 
         } catch (e: Exception) {
             addDebugMessage("❌ SHA1检查失败: ${e.message}")
