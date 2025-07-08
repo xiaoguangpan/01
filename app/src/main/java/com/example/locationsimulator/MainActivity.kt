@@ -59,16 +59,12 @@ import com.example.locationsimulator.data.SuggestionItem
 import com.example.locationsimulator.ui.theme.LocationSimulatorTheme
 import com.example.locationsimulator.util.CoordinateConverter
 import com.example.locationsimulator.util.MockLocationManager
-import com.example.locationsimulator.util.DeviceCompatibilityManager
-import com.example.locationsimulator.util.SensorSimulationManager
-import com.example.locationsimulator.util.AntiDetectionManager
-import com.example.locationsimulator.util.XiaomiAntiDetectionManager
-import com.example.locationsimulator.util.UltimateXiaomiBypass
 import com.example.locationsimulator.util.SHA1Util
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import rikka.shizuku.Shizuku
 
 // region ViewModel
 enum class InputMode { ADDRESS, COORDINATE }
@@ -142,42 +138,6 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         val newMessage = "[$timestamp] $message"
         debugMessages = (debugMessages + newMessage).takeLast(20) // 保留最新20条
         Log.d("LocationViewModel", newMessage)
-    }
-
-    fun getDeviceCompatibilityInfo(): String {
-        return DeviceCompatibilityManager.getDeviceInfo()
-    }
-
-    fun getBrandSpecificInstructions(): String {
-        return DeviceCompatibilityManager.getBrandSpecificInstructions(application)
-    }
-
-    fun isHyperOSDevice(): Boolean {
-        return DeviceCompatibilityManager.getSystemInfo().brand == DeviceCompatibilityManager.DeviceBrand.XIAOMI_HYPEROS
-    }
-
-    fun getHyperOSWarning(): String {
-        val systemInfo = DeviceCompatibilityManager.getSystemInfo()
-        return if (systemInfo.brand == DeviceCompatibilityManager.DeviceBrand.XIAOMI_HYPEROS) {
-            "⚠️ 检测到HyperOS ${systemInfo.hyperOSVersion ?: "2.0+"}，需要特殊配置才能正常工作"
-        } else {
-            ""
-        }
-    }
-
-    fun getPersistentModeStatus(): String {
-        val persistentActive = AntiDetectionManager.isPersistentModeActive()
-        val xiaomiActive = XiaomiAntiDetectionManager.isXiaomiAntiDetectionRunning()
-        val ultimateActive = UltimateXiaomiBypass.isUltimateBypassActive()
-
-        return when {
-            persistentActive && xiaomiActive && ultimateActive -> "🚀 终极反检测已启用 - 系统级绕过"
-            persistentActive && xiaomiActive -> "🛡️ 增强反检测已启用 - 小米专用模式"
-            ultimateActive -> "🚀 终极小米绕过已启用"
-            persistentActive -> "🛡️ 持久化模拟定位已启用 - 防止应用检测"
-            xiaomiActive -> "🔧 小米专用反检测已启用"
-            else -> ""
-        }
     }
 
     fun toggleDebugExpanded() {
@@ -1097,12 +1057,6 @@ fun MainScreen(viewModel: MainViewModel) {
             StatusCheck(viewModel)
             Spacer(Modifier.height(12.dp))
 
-            // HyperOS特殊警告
-            if (viewModel.isHyperOSDevice()) {
-                HyperOSWarning(viewModel)
-                Spacer(Modifier.height(12.dp))
-            }
-
             // 输入控件（不包含按钮）
             InputControls(viewModel)
             Spacer(Modifier.height(12.dp))
@@ -1283,57 +1237,12 @@ fun DebugPanel(viewModel: MainViewModel) {
 }
 
 @Composable
-fun HyperOSWarning(viewModel: MainViewModel) {
-    val warningMessage = viewModel.getHyperOSWarning()
-    if (warningMessage.isNotEmpty()) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFFF5722).copy(alpha = 0.1f)),
-            border = BorderStroke(1.dp, Color(0xFFFF5722))
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = warningMessage,
-                    color = Color(0xFFFF5722),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "请按照下方设置指导完成HyperOS特殊配置",
-                    color = Color(0xFFFF5722),
-                    fontSize = 12.sp
-                )
-                Spacer(Modifier.height(8.dp))
-                TextButton(
-                    onClick = {
-                        // 显示详细的HyperOS设置指导
-                        android.widget.Toast.makeText(
-                            viewModel.application,
-                            "请查看调试面板中的详细设置指导",
-                            android.widget.Toast.LENGTH_LONG
-                        ).show()
-                        viewModel.addDebugMessage("📋 HyperOS设置指导:")
-                        viewModel.addDebugMessage(viewModel.getBrandSpecificInstructions())
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF5722))
-                ) {
-                    Text("查看详细设置指导", fontSize = 12.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun StatusCheck(viewModel: MainViewModel) {
     val context = LocalContext.current
 
     // 使用 remember 和 mutableStateOf 来实现状态更新
     var isDeveloperModeEnabled by remember { mutableStateOf(false) }
-    var isMockLocationAppSet by remember { mutableStateOf(false) }
+    var isShizukuAvailable by remember { mutableStateOf(false) }
 
     // 使用 LaunchedEffect 来检查状态（只在状态变化时输出调试信息）
     LaunchedEffect(Unit) {
@@ -1343,14 +1252,14 @@ fun StatusCheck(viewModel: MainViewModel) {
         } catch (e: Exception) {
             false
         }
-        var lastMockLocationApp = MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
+        var lastShizukuAvailable = try { Shizuku.pingBinder() } catch (e: Exception) { false }
 
         isDeveloperModeEnabled = lastDeveloperMode
-        isMockLocationAppSet = lastMockLocationApp
+        isShizukuAvailable = lastShizukuAvailable
 
         // 初始状态输出
         viewModel.addDebugMessage("📱 初始状态检查 - 开发者模式: ${if (lastDeveloperMode) "已开启" else "未开启"}")
-        viewModel.addDebugMessage("📱 初始状态检查 - 模拟定位应用: ${if (lastMockLocationApp) "已设置" else "未设置"}")
+        viewModel.addDebugMessage("📱 初始状态检查 - Shizuku: ${if (lastShizukuAvailable) "可用" else "不可用"}")
 
         // 每3秒检查一次，但只在状态变化时输出调试信息
         while (true) {
@@ -1361,7 +1270,7 @@ fun StatusCheck(viewModel: MainViewModel) {
             } catch (e: Exception) {
                 false
             }
-            val currentMockLocationApp = MockLocationManager.isCurrentAppSelectedAsMockLocationApp(context)
+            val currentShizukuAvailable = try { Shizuku.pingBinder() } catch (e: Exception) { false }
 
             // 只在状态变化时输出调试信息
             if (currentDeveloperMode != lastDeveloperMode) {
@@ -1370,10 +1279,10 @@ fun StatusCheck(viewModel: MainViewModel) {
                 isDeveloperModeEnabled = currentDeveloperMode
             }
 
-            if (currentMockLocationApp != lastMockLocationApp) {
-                viewModel.addDebugMessage("🔄 模拟定位应用状态变化: ${if (currentMockLocationApp) "已设置" else "未设置"}")
-                lastMockLocationApp = currentMockLocationApp
-                isMockLocationAppSet = currentMockLocationApp
+            if (currentShizukuAvailable != lastShizukuAvailable) {
+                viewModel.addDebugMessage("🔄 Shizuku状态变化: ${if (currentShizukuAvailable) "可用" else "不可用"}")
+                lastShizukuAvailable = currentShizukuAvailable
+                isShizukuAvailable = currentShizukuAvailable
             }
         }
     }
@@ -1411,39 +1320,33 @@ fun StatusCheck(viewModel: MainViewModel) {
             )
         }
 
-        // 模拟定位应用状态 - 缩小
+        // Shizuku状态 - 缩小
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color.White.copy(alpha = 0.1f))
                 .clickable {
-                    context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+                    try {
+                        context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")?.let {
+                            context.startActivity(it)
+                        }
+                    } catch (e: Exception) {
+                        viewModel.addDebugMessage("无法打开Shizuku: ${e.message}")
+                    }
                 }
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "模拟定位: ",
+                text = "Shizuku: ",
                 color = Color.White,
                 fontSize = 12.sp
             )
             Text(
-                text = if (isMockLocationAppSet) "已设置" else "未设置",
-                color = if (isMockLocationAppSet) Color(0xFF4CAF50) else Color(0xFFFB8C00),
+                text = if (isShizukuAvailable) "可用" else "不可用",
+                color = if (isShizukuAvailable) Color(0xFF4CAF50) else Color(0xFFFB8C00),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
-            )
-        }
-
-        // 显示持久化模式状态
-        val persistentStatus = viewModel.getPersistentModeStatus()
-        if (persistentStatus.isNotEmpty()) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = persistentStatus,
-                color = Color(0xFF2196F3),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium
             )
         }
     }
