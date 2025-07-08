@@ -67,7 +67,7 @@ import kotlinx.coroutines.Dispatchers
 // region ViewModel
 enum class InputMode { ADDRESS, COORDINATE }
 
-class MainViewModel(private val application: android.app.Application) : ViewModel() {
+class MainViewModel(val application: android.app.Application) : ViewModel() {
     var isSimulating by mutableStateOf(false)
         private set
 

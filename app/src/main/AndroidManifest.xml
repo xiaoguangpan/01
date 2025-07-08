@@ -28,10 +28,11 @@
     <application
         android:name=".MainApplication"
         android:allowBackup="true"
+        android:icon="@drawable/ic_launcher"
         android:label="定红"
         android:supportsRtl="true"
         tools:targetApi="31"
-        tools:replace="android:label,android:allowBackup,android:supportsRtl"
+        tools:replace="android:label,android:allowBackup"
         tools:ignore="AllowBackup">
 
         <meta-data
@@ -49,8 +50,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="定红"
-            tools:replace="android:label">
+            android:label="定红">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
