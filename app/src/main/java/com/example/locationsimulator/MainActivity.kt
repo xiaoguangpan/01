@@ -97,11 +97,15 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
     var coordinateInput by mutableStateOf("")
         private set
 
-    var currentLatitude by mutableStateOf(39.915) // 默认北京纬度
+    var currentLatitude by mutableStateOf(39.915) // 默认北京纬度 (BD09坐标系，用于地图显示)
         private set
 
-    var currentLongitude by mutableStateOf(116.404) // 默认北京经度
+    var currentLongitude by mutableStateOf(116.404) // 默认北京经度 (BD09坐标系，用于地图显示)
         private set
+
+    // 用于模拟定位的WGS84坐标
+    private var simulationLatitude: Double = 39.915
+    private var simulationLongitude: Double = 116.404
 
     var statusMessage by mutableStateOf<String?>(null)
         private set
@@ -223,7 +227,8 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         suggestion.location?.let { location ->
             currentLatitude = location.latitude
             currentLongitude = location.longitude
-            addDebugMessage("🗺️ 地图位置已更新: (${location.longitude}, ${location.latitude})")
+            addDebugMessage("🗺️ 地图位置已更新: BD09(${location.longitude}, ${location.latitude})")
+            addDebugMessage("📍 选择地址: ${suggestion.name}")
         }
     }
 
@@ -730,17 +735,24 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
 
                         addDebugMessage("🚀 启动全面系统级模拟定位...")
                         addDebugMessage("📍 地址: $addressQuery")
-                        addDebugMessage("📍 目标坐标: WGS84($lngWgs, $latWgs)")
+                        addDebugMessage("📍 地图坐标: BD09(${location.longitude}, ${location.latitude})")
+                        addDebugMessage("📍 模拟坐标: WGS84($lngWgs, $latWgs)")
 
                         try {
                             MockLocationManager.start(context, latWgs, lngWgs)
 
-                            // 更新当前坐标为模拟位置
-                            currentLatitude = latWgs
-                            currentLongitude = lngWgs
+                            // 保存模拟定位的WGS84坐标
+                            simulationLatitude = latWgs
+                            simulationLongitude = lngWgs
+
+                            // 保持地图显示坐标为BD09坐标系（不变）
+                            currentLatitude = location.latitude
+                            currentLongitude = location.longitude
+
                             addDebugMessage("✅ 系统级模拟定位启动成功")
                             addDebugMessage("📱 已覆盖所有定位提供者 (GPS/网络/被动)")
-                            addDebugMessage("🎯 当前坐标已更新: ($lngWgs, $latWgs)")
+                            addDebugMessage("🎯 地图坐标保持: BD09(${location.longitude}, ${location.latitude})")
+                            addDebugMessage("🎯 模拟坐标设置: WGS84($lngWgs, $latWgs)")
 
                             isSimulating = true
                             statusMessage = "模拟成功: $addressQuery"
@@ -813,18 +825,25 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                 addDebugMessage("坐标转换完成: WGS84($lngWgs, $latWgs)")
 
                 addDebugMessage("🚀 启动全面系统级模拟定位...")
-                addDebugMessage("📍 目标坐标: WGS84($lngWgs, $latWgs)")
+                addDebugMessage("📍 输入坐标: BD09($targetLng, $targetLat)")
+                addDebugMessage("📍 模拟坐标: WGS84($lngWgs, $latWgs)")
                 Log.d("LocationViewModel", "Starting comprehensive mock location: lng=$lngWgs, lat=$latWgs")
 
                 try {
                     MockLocationManager.start(context, latWgs, lngWgs)
 
-                    // 更新当前坐标为模拟位置
-                    currentLatitude = latWgs
-                    currentLongitude = lngWgs
+                    // 保存模拟定位的WGS84坐标
+                    simulationLatitude = latWgs
+                    simulationLongitude = lngWgs
+
+                    // 保持地图显示坐标为BD09坐标系（用户输入的坐标）
+                    currentLatitude = targetLat
+                    currentLongitude = targetLng
+
                     addDebugMessage("✅ 系统级模拟定位启动成功")
                     addDebugMessage("📱 已覆盖所有定位提供者 (GPS/网络/被动)")
-                    addDebugMessage("🎯 当前坐标已更新: ($lngWgs, $latWgs)")
+                    addDebugMessage("🎯 地图坐标保持: BD09($targetLng, $targetLat)")
+                    addDebugMessage("🎯 模拟坐标设置: WGS84($lngWgs, $latWgs)")
 
                     isSimulating = true
                     statusMessage = "模拟成功: $coordinateInput"
@@ -1451,17 +1470,9 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean, viewModel
     val mapView = remember { MapView(context) }
     var isInitialized by remember { mutableStateOf(false) }
 
-    // 根据模拟状态获取正确的坐标
-    val currentLat = if (isSimulating && viewModel != null) {
-        viewModel.currentLatitude
-    } else {
-        viewModel?.currentLatitude ?: 39.915
-    }
-    val currentLng = if (isSimulating && viewModel != null) {
-        viewModel.currentLongitude
-    } else {
-        viewModel?.currentLongitude ?: 116.404
-    }
+    // 获取当前坐标（无论是否在模拟状态都使用viewModel中的坐标）
+    val currentLat = viewModel?.currentLatitude ?: 39.915
+    val currentLng = viewModel?.currentLongitude ?: 116.404
 
     // 监听位置变化，确保地图实时更新
     LaunchedEffect(currentLat, currentLng, isSimulating) {
