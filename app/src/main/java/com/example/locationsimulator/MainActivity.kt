@@ -220,10 +220,10 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         suggestions = emptyList()
 
         // 如果建议包含坐标信息，更新地图位置
-        if (suggestion.latitude != null && suggestion.longitude != null) {
-            currentLatitude = suggestion.latitude
-            currentLongitude = suggestion.longitude
-            addDebugMessage("🗺️ 地图位置已更新: (${suggestion.longitude}, ${suggestion.latitude})")
+        suggestion.location?.let { location ->
+            currentLatitude = location.latitude
+            currentLongitude = location.longitude
+            addDebugMessage("🗺️ 地图位置已更新: (${location.longitude}, ${location.latitude})")
         }
     }
 
