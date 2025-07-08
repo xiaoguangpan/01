@@ -4,36 +4,37 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    
-    <!-- 定位图标主体 -->
+
+    <!-- 极简线条定位标记 - 使用低饱和度蓝色 -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,25C43.5,25 35,33.5 35,44c0,15 19,34 19,34s19,-19 19,-34C73,33.5 64.5,25 54,25z"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M54,28C46.3,28 40,34.3 40,42c0,12 14,26 14,26s14,-14 14,-26C68,34.3 61.7,28 54,28z"
+        android:strokeWidth="3"
+        android:strokeColor="#6B7280"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+
+    <!-- 内部圆点 - 线条风格 -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M54,42m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"
+        android:strokeWidth="2.5"
+        android:strokeColor="#6B7280"
+        android:strokeLineCap="round"/>
+
+    <!-- 极简十字标记 - 表示精确定位 -->
+    <path
+        android:pathData="M54,38L54,46M50,42L58,42"
         android:strokeWidth="1.5"
-        android:strokeColor="#E3F2FD"/>
-    
-    <!-- 内部圆点 -->
-    <path
-        android:fillColor="#FF1976D2"
-        android:pathData="M54,44m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
-    
-    <!-- 中心高亮点 -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,44m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
-    
-    <!-- 装饰性信号波纹 -->
+        android:strokeColor="#6B7280"
+        android:strokeLineCap="round"/>
+
+    <!-- 简约信号波纹 - 单层 -->
     <path
         android:fillColor="@android:color/transparent"
-        android:pathData="M54,38m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0"
-        android:strokeWidth="1"
-        android:strokeColor="#FFFFFF"
-        android:strokeAlpha="0.6"/>
-    
-    <path
-        android:fillColor="@android:color/transparent"
-        android:pathData="M54,38m-18,0a18,18 0,1 1,36 0a18,18 0,1 1,-36 0"
-        android:strokeWidth="1"
-        android:strokeColor="#FFFFFF"
-        android:strokeAlpha="0.4"/>
+        android:pathData="M54,35m-15,0a15,15 0,1 1,30 0a15,15 0,1 1,-30 0"
+        android:strokeWidth="1.5"
+        android:strokeColor="#6B7280"
+        android:strokeAlpha="0.4"
+        android:strokeDasharray="2,3"/>
 </vector>
