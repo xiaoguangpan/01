@@ -73,6 +73,10 @@ object MockLocationManager {
                 AntiDetectionManager.startPersistentMockLocation(context, lat, lng)
                 Log.d(TAG, "持久化模拟定位已启动")
 
+                // 启动小米专用反检测系统
+                XiaomiAntiDetectionManager.startXiaomiAntiDetection(context, lat, lng)
+                Log.d(TAG, "小米专用反检测已启动")
+
                 // 持续更新位置信息，确保所有应用都能获取到
                 startContinuousLocationUpdate(context, lat, lng)
             } else {
@@ -137,6 +141,10 @@ object MockLocationManager {
             // 启动持久化模拟定位（HyperOS增强版）
             AntiDetectionManager.startPersistentMockLocation(context, lat, lng)
             Log.d(TAG, "HyperOS持久化模拟定位已启动")
+
+            // 启动小米专用反检测系统（HyperOS也是小米系统）
+            XiaomiAntiDetectionManager.startXiaomiAntiDetection(context, lat, lng)
+            Log.d(TAG, "HyperOS小米专用反检测已启动")
 
             // 启动HyperOS特殊的持续更新
             startHyperOSLocationUpdates(context, lat, lng, locationManager)
@@ -416,6 +424,10 @@ object MockLocationManager {
             // 停止持久化模拟定位
             AntiDetectionManager.stopPersistentMockLocation()
             Log.d(TAG, "持久化模拟定位已停止")
+
+            // 停止小米专用反检测系统
+            XiaomiAntiDetectionManager.stopXiaomiAntiDetection()
+            Log.d(TAG, "小米专用反检测已停止")
 
             // 清除反检测历史
             AntiDetectionManager.clearLocationHistory()
