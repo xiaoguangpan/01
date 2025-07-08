@@ -258,13 +258,37 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                 addDebugMessage("✅ 百度API Key已配置: ${apiKey.take(10)}...")
             }
 
-            // 等待一下确保SDK完全初始化
+            // 先测试SDK状态
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                testSDKInitialization()
+            }, 1000)
+
+            // 等待更长时间确保SDK完全初始化
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                addDebugMessage("🔄 开始延迟初始化搜索服务...")
                 initSuggestionSearch()
-            }, 500)
+            }, 3000) // 增加到3秒
 
         } catch (e: Exception) {
             addDebugMessage("❌ 服务初始化异常: ${e.message}")
+        }
+    }
+
+    // 测试SDK是否正确初始化
+    private fun testSDKInitialization() {
+        try {
+            addDebugMessage("🧪 测试SDK初始化状态...")
+
+            // 尝试创建一个简单的搜索实例来测试
+            val testSearch = SuggestionSearch.newInstance()
+            if (testSearch != null) {
+                addDebugMessage("✅ SDK初始化正常，可以创建搜索实例")
+                testSearch.destroy()
+            } else {
+                addDebugMessage("❌ SDK初始化异常，无法创建搜索实例")
+            }
+        } catch (e: Exception) {
+            addDebugMessage("❌ SDK测试失败: ${e.message}")
         }
     }
 
@@ -272,11 +296,24 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         try {
             addDebugMessage("🔍 初始化地址建议搜索...")
 
+            // 确保在主线程中创建
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    initSuggestionSearch()
+                }
+                return
+            }
+
             // 创建建议搜索实例
             mSuggestionSearch = SuggestionSearch.newInstance()
 
             if (mSuggestionSearch == null) {
-                addDebugMessage("❌ SuggestionSearch创建失败")
+                addDebugMessage("❌ SuggestionSearch创建失败，可能SDK未完全初始化")
+                // 重试一次
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    addDebugMessage("🔄 重试创建SuggestionSearch...")
+                    initSuggestionSearch()
+                }, 1000)
                 return
             }
 
@@ -287,6 +324,7 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
 
         } catch (e: Exception) {
             addDebugMessage("❌ SuggestionSearch初始化失败: ${e.message}")
+            Log.e("LocationViewModel", "SuggestionSearch initialization failed", e)
         }
     }
 
