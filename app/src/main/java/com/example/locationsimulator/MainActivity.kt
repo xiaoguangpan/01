@@ -1186,59 +1186,59 @@ fun StatusCheck(viewModel: MainViewModel) {
         }
     }
 
-    // 简化为一行显示的状态栏
+    // 紧凑的状态栏 - 缩小尺寸
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(alpha = 0.1f))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // 开发者模式状态
+        // 开发者模式状态 - 缩小
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(Color.White.copy(alpha = 0.1f))
                 .clickable {
                     context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
                 }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "开发者模式: ",
                 color = Color.White,
-                fontSize = 14.sp
+                fontSize = 12.sp
             )
             Text(
                 text = if (isDeveloperModeEnabled) "已开启" else "未开启",
                 color = if (isDeveloperModeEnabled) Color(0xFF4CAF50) else Color(0xFFF44336),
-                fontSize = 14.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
             )
         }
 
-        // 模拟定位应用状态
+        // 模拟定位应用状态 - 缩小
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(Color.White.copy(alpha = 0.1f))
                 .clickable {
                     context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
                 }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "模拟定位: ",
                 color = Color.White,
-                fontSize = 14.sp
+                fontSize = 12.sp
             )
             Text(
                 text = if (isMockLocationAppSet) "已设置" else "未设置",
                 color = if (isMockLocationAppSet) Color(0xFF4CAF50) else Color(0xFFFB8C00),
-                fontSize = 14.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -1402,7 +1402,7 @@ fun AddressInputWithSuggestions(viewModel: MainViewModel) {
                 decorationBox = { innerTextField ->
                     if (viewModel.addressQuery.isEmpty()) {
                         Text(
-                            text = "输入目标地址，如：人民公园",
+                            text = "输入目标地址",
                             color = Color.White.copy(alpha = 0.6f),
                             fontSize = 16.sp
                         )
@@ -1463,6 +1463,36 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean, viewModel
         viewModel?.currentLongitude ?: 116.404
     }
 
+    // 监听位置变化，确保地图实时更新
+    LaunchedEffect(currentLat, currentLng, isSimulating) {
+        if (isInitialized) {
+            mapView.map?.let { baiduMap ->
+                // 清除之前的覆盖物
+                baiduMap.clear()
+
+                // 添加位置标注
+                val currentLocation = LatLng(currentLat, currentLng)
+                val markerOptions = MarkerOptions()
+                    .position(currentLocation)
+                    .icon(BitmapDescriptorFactory.fromResource(
+                        if (isSimulating) android.R.drawable.ic_menu_compass
+                        else android.R.drawable.ic_menu_mylocation
+                    ))
+                    .title(if (isSimulating) "模拟位置" else "当前位置")
+
+                baiduMap.addOverlay(markerOptions)
+
+                // 更新地图位置并添加动画
+                val mapStatus = MapStatus.Builder()
+                    .target(currentLocation)
+                    .zoom(16f)
+                    .build()
+
+                baiduMap.animateMapStatus(MapStatusUpdateFactory.newMapStatus(mapStatus))
+            }
+        }
+    }
+
     AndroidView(
         factory = { mapView },
         modifier = modifier.clip(RoundedCornerShape(16.dp))
@@ -1490,31 +1520,28 @@ fun BaiduMapView(modifier: Modifier = Modifier, isSimulating: Boolean, viewModel
                 }
 
                 isInitialized = true
+
+                // 初始化时设置地图位置
+                val currentLocation = LatLng(currentLat, currentLng)
+                val markerOptions = MarkerOptions()
+                    .position(currentLocation)
+                    .icon(BitmapDescriptorFactory.fromResource(
+                        if (isSimulating) android.R.drawable.ic_menu_compass
+                        else android.R.drawable.ic_menu_mylocation
+                    ))
+                    .title(if (isSimulating) "模拟位置" else "当前位置")
+
+                addOverlay(markerOptions)
+
+                // 设置地图位置
+                val mapStatus = MapStatus.Builder()
+                    .target(currentLocation)
+                    .zoom(16f)
+                    .build()
+
+                animateMapStatus(MapStatusUpdateFactory.newMapStatus(mapStatus))
             }
         }
-
-        // 清除之前的覆盖物
-        view.map.clear()
-
-        // 添加位置标注
-        val currentLocation = LatLng(currentLat, currentLng)
-        val markerOptions = MarkerOptions()
-            .position(currentLocation)
-            .icon(BitmapDescriptorFactory.fromResource(
-                if (isSimulating) android.R.drawable.ic_menu_compass
-                else android.R.drawable.ic_menu_mylocation
-            ))
-            .title(if (isSimulating) "模拟位置" else "当前位置")
-
-        view.map.addOverlay(markerOptions)
-
-        // 更新地图位置并添加动画
-        val mapStatus = MapStatus.Builder()
-            .target(currentLocation)
-            .zoom(16f)
-            .build()
-
-        view.map.animateMapStatus(MapStatusUpdateFactory.newMapStatus(mapStatus))
     }
 }
 
