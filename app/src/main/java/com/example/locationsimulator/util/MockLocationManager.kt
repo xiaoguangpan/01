@@ -14,19 +14,35 @@ object MockLocationManager {
     private val ALL_PROVIDERS = listOf(
         LocationManager.GPS_PROVIDER,
         LocationManager.NETWORK_PROVIDER,
-        LocationManager.PASSIVE_PROVIDER
+        LocationManager.PASSIVE_PROVIDER,
+        "fused" // Google Play Services Fused Location Provider
     )
 
     fun start(context: Context, lat: Double, lng: Double) {
         try {
             Log.d(TAG, "🚀 开始设置全面系统级模拟定位: $lat, $lng")
+
+            // 设备兼容性检查
+            val deviceBrand = DeviceCompatibilityManager.getCurrentDeviceBrand()
+            Log.d(TAG, "检测到设备品牌: $deviceBrand")
+
+            val (hasLimitations, limitationMsg) = DeviceCompatibilityManager.hasKnownLimitations()
+            if (hasLimitations) {
+                Log.w(TAG, "设备限制警告: $limitationMsg")
+            }
+
             val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
-            // 检查权限
+            // 增强权限检查
             if (!isCurrentAppSelectedAsMockLocationApp(context)) {
                 Log.e(TAG, "❌ 应用未被设置为模拟定位应用")
+                Log.d(TAG, "设备特定设置指导:\n${DeviceCompatibilityManager.getBrandSpecificInstructions(context)}")
                 throw SecurityException("应用未被设置为模拟定位应用")
             }
+
+            // 启动传感器模拟
+            SensorSimulationManager.startSensorSimulation(context, lat, lng)
+            Log.d(TAG, "传感器模拟已启动")
 
             // 为所有提供者设置模拟位置
             var successCount = 0
@@ -89,8 +105,8 @@ object MockLocationManager {
         // 启用测试提供者
         locationManager.setTestProviderEnabled(provider, true)
 
-        // 创建高精度模拟位置
-        val mockLocation = createHighPrecisionLocation(provider, lat, lng)
+        // 创建具有反检测特性的高精度模拟位置
+        val mockLocation = AntiDetectionManager.createAntiDetectionLocation(provider, lat, lng)
 
         // 设置模拟位置
         locationManager.setTestProviderLocation(provider, mockLocation)
@@ -135,7 +151,7 @@ object MockLocationManager {
                     val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
                     ALL_PROVIDERS.forEach { provider ->
                         try {
-                            val location = createHighPrecisionLocation(provider, lat, lng)
+                            val location = AntiDetectionManager.createAntiDetectionLocation(provider, lat, lng)
                             locationManager.setTestProviderLocation(provider, location)
                         } catch (e: Exception) {
                             // 忽略单个提供者的错误
@@ -168,6 +184,14 @@ object MockLocationManager {
                 }
             }
 
+            // 停止传感器模拟
+            SensorSimulationManager.stopSensorSimulation()
+            Log.d(TAG, "传感器模拟已停止")
+
+            // 清除反检测历史
+            AntiDetectionManager.clearLocationHistory()
+            Log.d(TAG, "反检测历史已清除")
+
             Log.d(TAG, "🏁 模拟定位停止完成，成功停止 $stoppedCount/${ALL_PROVIDERS.size} 个提供者")
         } catch (e: Exception) {
             Log.e(TAG, "❌ 停止模拟定位失败: ${e.message}")
@@ -190,6 +214,21 @@ object MockLocationManager {
     fun isCurrentAppSelectedAsMockLocationApp(context: Context): Boolean {
         return try {
             Log.d("MockLocationManager", "检查模拟定位应用状态...")
+
+            // Android 10+ 增强权限检查
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                Log.d("MockLocationManager", "Android 10+ 权限检查模式")
+
+                // 检查后台定位权限
+                val hasBackgroundLocation = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    androidx.core.content.ContextCompat.checkSelfPermission(
+                        context,
+                        android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                } else true
+
+                Log.d("MockLocationManager", "后台定位权限: $hasBackgroundLocation")
+            }
 
             // Android 6.0+ 检查应用是否有系统级权限
             val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager

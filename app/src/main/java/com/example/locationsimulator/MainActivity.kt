@@ -58,6 +58,9 @@ import com.example.locationsimulator.data.SuggestionItem
 import com.example.locationsimulator.ui.theme.LocationSimulatorTheme
 import com.example.locationsimulator.util.CoordinateConverter
 import com.example.locationsimulator.util.MockLocationManager
+import com.example.locationsimulator.util.DeviceCompatibilityManager
+import com.example.locationsimulator.util.SensorSimulationManager
+import com.example.locationsimulator.util.AntiDetectionManager
 import com.example.locationsimulator.util.SHA1Util
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -136,6 +139,14 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         val newMessage = "[$timestamp] $message"
         debugMessages = (debugMessages + newMessage).takeLast(20) // 保留最新20条
         Log.d("LocationViewModel", newMessage)
+    }
+
+    fun getDeviceCompatibilityInfo(): String {
+        return DeviceCompatibilityManager.getDeviceInfo()
+    }
+
+    fun getBrandSpecificInstructions(): String {
+        return DeviceCompatibilityManager.getBrandSpecificInstructions(application)
     }
 
     fun toggleDebugExpanded() {
