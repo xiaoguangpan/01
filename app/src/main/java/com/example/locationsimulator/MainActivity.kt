@@ -565,11 +565,10 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                 return
             }
 
-            // 创建搜索选项，根据百度官方文档，city为必填项
-            val option = SuggestionSearchOption().apply {
-                keyword(query.trim()) // 设置关键词并去除空格
-                city(currentSearchCity) // 使用当前选择的城市
-            }
+            // 创建搜索选项，根据百度官方文档，使用链式调用
+            val option = SuggestionSearchOption()
+                .keyword(query.trim()) // 设置关键词并去除空格
+                .city(currentSearchCity) // city为必填项，使用当前选择的城市
 
             addDebugMessage("📡 发送搜索请求到百度服务器...")
             addDebugMessage("🔍 搜索关键词: '$query', 搜索城市: $currentSearchCity")
