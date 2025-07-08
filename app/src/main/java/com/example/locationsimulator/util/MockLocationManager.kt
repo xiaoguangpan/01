@@ -22,6 +22,8 @@ object MockLocationManager {
         try {
             Log.d(TAG, "🚀 开始设置全面系统级模拟定位: $lat, $lng")
 
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
             // 设备兼容性检查
             val systemInfo = DeviceCompatibilityManager.getSystemInfo()
             Log.d(TAG, "检测到设备: ${systemInfo.brand} - ${systemInfo.systemName} ${systemInfo.systemVersion}")
@@ -36,8 +38,6 @@ object MockLocationManager {
                 Log.w(TAG, "检测到HyperOS ${systemInfo.hyperOSVersion}，启用特殊处理模式")
                 return startHyperOSCompatibleMockLocation(context, lat, lng, locationManager)
             }
-
-            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
             // 增强权限检查
             if (!isCurrentAppSelectedAsMockLocationApp(context)) {
