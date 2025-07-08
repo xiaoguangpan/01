@@ -65,6 +65,14 @@ object MockLocationManager {
             if (successCount > 0) {
                 Log.d(TAG, "🎯 模拟定位设置完成，成功设置 $successCount/${ ALL_PROVIDERS.size} 个提供者")
 
+                // 启动传感器模拟
+                SensorSimulationManager.startSensorSimulation(context, lat, lng)
+                Log.d(TAG, "传感器模拟已启动")
+
+                // 启动持久化模拟定位（针对百度地图、高德地图等应用的反检测）
+                AntiDetectionManager.startPersistentMockLocation(context, lat, lng)
+                Log.d(TAG, "持久化模拟定位已启动")
+
                 // 持续更新位置信息，确保所有应用都能获取到
                 startContinuousLocationUpdate(context, lat, lng)
             } else {
@@ -121,6 +129,14 @@ object MockLocationManager {
             if (successCount == 0) {
                 throw Exception("所有HyperOS定位提供者设置失败")
             }
+
+            // 启动传感器模拟
+            SensorSimulationManager.startSensorSimulation(context, lat, lng)
+            Log.d(TAG, "HyperOS传感器模拟已启动")
+
+            // 启动持久化模拟定位（HyperOS增强版）
+            AntiDetectionManager.startPersistentMockLocation(context, lat, lng)
+            Log.d(TAG, "HyperOS持久化模拟定位已启动")
 
             // 启动HyperOS特殊的持续更新
             startHyperOSLocationUpdates(context, lat, lng, locationManager)
@@ -396,6 +412,10 @@ object MockLocationManager {
             // 停止传感器模拟
             SensorSimulationManager.stopSensorSimulation()
             Log.d(TAG, "传感器模拟已停止")
+
+            // 停止持久化模拟定位
+            AntiDetectionManager.stopPersistentMockLocation()
+            Log.d(TAG, "持久化模拟定位已停止")
 
             // 清除反检测历史
             AntiDetectionManager.clearLocationHistory()

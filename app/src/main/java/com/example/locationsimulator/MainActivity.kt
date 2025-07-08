@@ -163,6 +163,14 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         }
     }
 
+    fun getPersistentModeStatus(): String {
+        return if (AntiDetectionManager.isPersistentModeActive()) {
+            "🛡️ 持久化模拟定位已启用 - 防止应用检测"
+        } else {
+            ""
+        }
+    }
+
     fun toggleDebugExpanded() {
         isDebugExpanded = !isDebugExpanded
     }
@@ -1415,6 +1423,18 @@ fun StatusCheck(viewModel: MainViewModel) {
                 color = if (isMockLocationAppSet) Color(0xFF4CAF50) else Color(0xFFFB8C00),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
+            )
+        }
+
+        // 显示持久化模式状态
+        val persistentStatus = viewModel.getPersistentModeStatus()
+        if (persistentStatus.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = persistentStatus,
+                color = Color(0xFF2196F3),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium
             )
         }
     }

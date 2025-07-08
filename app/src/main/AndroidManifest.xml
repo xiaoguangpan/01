@@ -28,7 +28,7 @@
     <application
         android:name=".MainApplication"
         android:allowBackup="true"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
         android:label="定红"
         android:supportsRtl="true"
         tools:targetApi="31"

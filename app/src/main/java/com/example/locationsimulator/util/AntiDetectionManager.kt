@@ -9,9 +9,15 @@ import kotlin.random.Random
 /**
  * 反检测管理器
  * 实现各种反检测机制，提高模拟定位在企业应用中的成功率
+ * 特别针对百度地图、高德地图、钉钉等应用的反篡改检测
  */
 object AntiDetectionManager {
     private const val TAG = "AntiDetection"
+
+    // 持久化定位状态
+    private var isPersistentMode = false
+    private var persistentHandler: android.os.Handler? = null
+    private var lastSetLocation: Pair<Double, Double>? = null
     
     // 位置历史记录
     private val locationHistory = mutableListOf<LocationRecord>()
@@ -268,11 +274,226 @@ object AntiDetectionManager {
     }
     
     /**
+     * 启动持久化模拟定位模式
+     * 针对百度地图、高德地图等应用的反检测
+     */
+    fun startPersistentMockLocation(context: Context, lat: Double, lng: Double) {
+        try {
+            Log.d(TAG, "启动持久化模拟定位模式")
+            isPersistentMode = true
+            lastSetLocation = Pair(lat, lng)
+
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+
+            // 创建持久化处理器
+            persistentHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+            // 启动高频率位置更新
+            startHighFrequencyLocationUpdates(locationManager, lat, lng)
+
+            // 启动位置监控和恢复机制
+            startLocationMonitoring(context, locationManager, lat, lng)
+
+            Log.d(TAG, "持久化模拟定位模式已启动")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "启动持久化模拟定位失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 停止持久化模拟定位模式
+     */
+    fun stopPersistentMockLocation() {
+        try {
+            Log.d(TAG, "停止持久化模拟定位模式")
+            isPersistentMode = false
+            persistentHandler?.removeCallbacksAndMessages(null)
+            persistentHandler = null
+            lastSetLocation = null
+            Log.d(TAG, "持久化模拟定位模式已停止")
+        } catch (e: Exception) {
+            Log.e(TAG, "停止持久化模拟定位失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 高频率位置更新 - 防止应用检测到位置变化
+     */
+    private fun startHighFrequencyLocationUpdates(
+        locationManager: android.location.LocationManager,
+        lat: Double,
+        lng: Double
+    ) {
+        val updateRunnable = object : Runnable {
+            override fun run() {
+                if (isPersistentMode) {
+                    try {
+                        // 为每个提供者设置位置，使用微小的随机偏移
+                        listOf(
+                            android.location.LocationManager.GPS_PROVIDER,
+                            android.location.LocationManager.NETWORK_PROVIDER,
+                            android.location.LocationManager.PASSIVE_PROVIDER,
+                            "fused"
+                        ).forEach { provider ->
+                            try {
+                                val location = createPersistentLocation(provider, lat, lng)
+                                locationManager.setTestProviderLocation(provider, location)
+                            } catch (e: Exception) {
+                                // 忽略单个提供者错误
+                            }
+                        }
+
+                        // 每5秒更新一次，保持位置活跃
+                        persistentHandler?.postDelayed(this, 5000)
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "高频率位置更新失败: ${e.message}")
+                    }
+                }
+            }
+        }
+
+        persistentHandler?.post(updateRunnable)
+        Log.d(TAG, "高频率位置更新已启动")
+    }
+
+    /**
+     * 位置监控和恢复机制 - 检测并对抗应用的位置重置
+     */
+    private fun startLocationMonitoring(
+        context: Context,
+        locationManager: android.location.LocationManager,
+        targetLat: Double,
+        targetLng: Double
+    ) {
+        val monitorRunnable = object : Runnable {
+            override fun run() {
+                if (isPersistentMode) {
+                    try {
+                        // 检查当前位置是否被重置
+                        val currentLocation = getCurrentMockLocation(locationManager)
+                        if (currentLocation != null) {
+                            val distance = calculateDistance(
+                                currentLocation.latitude, currentLocation.longitude,
+                                targetLat, targetLng
+                            )
+
+                            // 如果位置偏差超过100米，说明可能被应用重置了
+                            if (distance > 100) {
+                                Log.w(TAG, "检测到位置被重置，距离目标位置${distance}米，正在恢复...")
+
+                                // 立即恢复目标位置
+                                restoreTargetLocation(locationManager, targetLat, targetLng)
+                            }
+                        }
+
+                        // 每10秒检查一次
+                        persistentHandler?.postDelayed(this, 10000)
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "位置监控失败: ${e.message}")
+                    }
+                }
+            }
+        }
+
+        persistentHandler?.postDelayed(monitorRunnable, 10000)
+        Log.d(TAG, "位置监控已启动")
+    }
+
+    /**
+     * 创建持久化位置对象
+     */
+    private fun createPersistentLocation(provider: String, lat: Double, lng: Double): android.location.Location {
+        val currentTime = System.currentTimeMillis()
+
+        // 添加微小的随机偏移，避免完全相同的坐标
+        val latOffset = kotlin.random.Random.nextDouble(-0.0000005, 0.0000005)
+        val lngOffset = kotlin.random.Random.nextDouble(-0.0000005, 0.0000005)
+
+        return android.location.Location(provider).apply {
+            latitude = lat + latOffset
+            longitude = lng + lngOffset
+            time = currentTime
+            elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+
+            // 设置真实的精度值
+            accuracy = when (provider) {
+                android.location.LocationManager.GPS_PROVIDER -> kotlin.random.Random.nextFloat() * 2f + 2f // 2-4米
+                android.location.LocationManager.NETWORK_PROVIDER -> kotlin.random.Random.nextFloat() * 5f + 8f // 8-13米
+                "fused" -> kotlin.random.Random.nextFloat() * 3f + 3f // 3-6米
+                else -> kotlin.random.Random.nextFloat() * 4f + 6f // 6-10米
+            }
+
+            // 设置其他参数
+            speed = 0.0f
+            bearing = 0.0f
+            altitude = 50.0 + kotlin.random.Random.nextDouble(-2.0, 2.0)
+
+            // Android 8.0+ 的额外参数
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                verticalAccuracyMeters = accuracy * 1.5f
+                speedAccuracyMetersPerSecond = 0.1f
+                bearingAccuracyDegrees = 15.0f
+            }
+        }
+    }
+
+    /**
+     * 获取当前模拟位置
+     */
+    private fun getCurrentMockLocation(locationManager: android.location.LocationManager): android.location.Location? {
+        return try {
+            // 尝试从GPS提供者获取最后位置
+            locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 恢复目标位置
+     */
+    private fun restoreTargetLocation(
+        locationManager: android.location.LocationManager,
+        lat: Double,
+        lng: Double
+    ) {
+        try {
+            listOf(
+                android.location.LocationManager.GPS_PROVIDER,
+                android.location.LocationManager.NETWORK_PROVIDER,
+                android.location.LocationManager.PASSIVE_PROVIDER,
+                "fused"
+            ).forEach { provider ->
+                try {
+                    val location = createPersistentLocation(provider, lat, lng)
+                    locationManager.setTestProviderLocation(provider, location)
+                } catch (e: Exception) {
+                    // 忽略单个提供者错误
+                }
+            }
+            Log.d(TAG, "目标位置已恢复")
+        } catch (e: Exception) {
+            Log.e(TAG, "恢复目标位置失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 检查是否处于持久化模式
+     */
+    fun isPersistentModeActive(): Boolean {
+        return isPersistentMode
+    }
+
+    /**
      * 清除位置历史
      */
     fun clearLocationHistory() {
         locationHistory.clear()
         lastLocationTime = 0L
+        stopPersistentMockLocation()
         Log.d(TAG, "位置历史已清除")
     }
 }
