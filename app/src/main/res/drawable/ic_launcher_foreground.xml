@@ -29,12 +29,11 @@
         android:strokeColor="#6B7280"
         android:strokeLineCap="round"/>
 
-    <!-- 简约信号波纹 - 单层 -->
+    <!-- 简约信号波纹 - 单层 (移除不支持的strokeDasharray) -->
     <path
         android:fillColor="@android:color/transparent"
         android:pathData="M54,35m-15,0a15,15 0,1 1,30 0a15,15 0,1 1,-30 0"
         android:strokeWidth="1.5"
         android:strokeColor="#6B7280"
-        android:strokeAlpha="0.4"
-        android:strokeDasharray="2,3"/>
+        android:strokeAlpha="0.4"/>
 </vector>
