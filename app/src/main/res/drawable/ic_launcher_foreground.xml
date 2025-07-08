@@ -5,35 +5,8 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 极简线条定位标记 - 使用低饱和度蓝色 -->
+    <!-- 单一简洁定位标记 - 白色填充 -->
     <path
-        android:fillColor="@android:color/transparent"
-        android:pathData="M54,28C46.3,28 40,34.3 40,42c0,12 14,26 14,26s14,-14 14,-26C68,34.3 61.7,28 54,28z"
-        android:strokeWidth="3"
-        android:strokeColor="#6B7280"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"/>
-
-    <!-- 内部圆点 - 线条风格 -->
-    <path
-        android:fillColor="@android:color/transparent"
-        android:pathData="M54,42m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"
-        android:strokeWidth="2.5"
-        android:strokeColor="#6B7280"
-        android:strokeLineCap="round"/>
-
-    <!-- 极简十字标记 - 表示精确定位 -->
-    <path
-        android:pathData="M54,38L54,46M50,42L58,42"
-        android:strokeWidth="1.5"
-        android:strokeColor="#6B7280"
-        android:strokeLineCap="round"/>
-
-    <!-- 简约信号波纹 - 单层 (移除不支持的strokeDasharray) -->
-    <path
-        android:fillColor="@android:color/transparent"
-        android:pathData="M54,35m-15,0a15,15 0,1 1,30 0a15,15 0,1 1,-30 0"
-        android:strokeWidth="1.5"
-        android:strokeColor="#6B7280"
-        android:strokeAlpha="0.4"/>
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30C47.4,30 42,35.4 42,42c0,9 12,24 12,24s12,-15 12,-24C66,35.4 60.6,30 54,30zM54,46c-2.2,0 -4,-1.8 -4,-4s1.8,-4 4,-4s4,1.8 4,4S56.2,46 54,46z"/>
 </vector>

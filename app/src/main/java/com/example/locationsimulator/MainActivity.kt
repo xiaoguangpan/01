@@ -63,6 +63,7 @@ import com.example.locationsimulator.util.DeviceCompatibilityManager
 import com.example.locationsimulator.util.SensorSimulationManager
 import com.example.locationsimulator.util.AntiDetectionManager
 import com.example.locationsimulator.util.XiaomiAntiDetectionManager
+import com.example.locationsimulator.util.UltimateXiaomiBypass
 import com.example.locationsimulator.util.SHA1Util
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -167,9 +168,12 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     fun getPersistentModeStatus(): String {
         val persistentActive = AntiDetectionManager.isPersistentModeActive()
         val xiaomiActive = XiaomiAntiDetectionManager.isXiaomiAntiDetectionRunning()
+        val ultimateActive = UltimateXiaomiBypass.isUltimateBypassActive()
 
         return when {
+            persistentActive && xiaomiActive && ultimateActive -> "🚀 终极反检测已启用 - 系统级绕过"
             persistentActive && xiaomiActive -> "🛡️ 增强反检测已启用 - 小米专用模式"
+            ultimateActive -> "🚀 终极小米绕过已启用"
             persistentActive -> "🛡️ 持久化模拟定位已启用 - 防止应用检测"
             xiaomiActive -> "🔧 小米专用反检测已启用"
             else -> ""
