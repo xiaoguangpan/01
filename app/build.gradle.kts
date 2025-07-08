@@ -83,6 +83,9 @@ dependencies {
     // 百度地图SDK - 使用JitPack上的版本（解决官方Maven仓库POM问题）
     implementation("com.github.ipcjs.baidu-map-sdk:g01:g01_3.0.5")
 
+    // Shizuku API for system-level access
+    implementation("dev.rikka.shizuku:api:13.1.5")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

@@ -4,9 +4,11 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- 单一简洁定位标记 - 白色填充 -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,30C47.4,30 42,35.4 42,42c0,9 12,24 12,24s12,-15 12,-24C66,35.4 60.6,30 54,30zM54,46c-2.2,0 -4,-1.8 -4,-4s1.8,-4 4,-4s4,1.8 4,4S56.2,46 54,46z"/>
+    <group
+        android:translateX="27"
+        android:translateY="27">
+        <path
+            android:fillColor="#ECF0F1"
+            android:pathData="M24,0C11.85,0,2,9.85,2,22c0,14.67,19.33,43,22,48c2.67-5,22-33.33,22-48C46,9.85,36.15,0,24,0zM24,32c-5.52,0-10-4.48-10-10s4.48-10,10-10,10,4.48,10,10S29.52,32,24,32z" />
+    </group>
 </vector>

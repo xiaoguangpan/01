@@ -47,6 +47,10 @@
             android:value="${BAIDU_MAP_AK}"
             tools:replace="android:value" />
 
+        <meta-data
+            android:name="shizuku:shizuku_service"
+            android:value="true" />
+
         <!-- 百度地图SDK需要的service -->
         <service
             android:name="com.baidu.location.f"
