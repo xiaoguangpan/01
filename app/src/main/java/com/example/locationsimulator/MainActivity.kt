@@ -70,6 +70,14 @@ enum class InputMode { ADDRESS, COORDINATE }
 class MainViewModel(private val application: android.app.Application) : ViewModel() {
     var isSimulating by mutableStateOf(false)
         private set
+
+    // 按钮文本状态
+    val buttonText: String
+        get() = if (isSimulating) "停止模拟定位" else "开始模拟定位"
+
+    // 按钮颜色状态
+    val buttonColor: androidx.compose.ui.graphics.Color
+        get() = if (isSimulating) androidx.compose.ui.graphics.Color.Red else androidx.compose.ui.graphics.Color(0xFF007AFF)
     private var _inputMode by mutableStateOf(InputMode.ADDRESS)
     val inputMode: InputMode get() = _inputMode
 
@@ -689,7 +697,15 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         }
     }
 
-    fun startSimulation(context: Context) {
+    fun toggleSimulation(context: Context) {
+        if (isSimulating) {
+            stopSimulation(context)
+        } else {
+            startSimulation(context)
+        }
+    }
+
+    private fun startSimulation(context: Context) {
         addDebugMessage("开始模拟定位...")
         statusMessage = "正在处理..."
 
@@ -716,10 +732,19 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
 
                 try {
                     MockLocationManager.start(context, wgsLat, wgsLng)
-                    statusMessage = "模拟定位已启动"
+                    isSimulating = true
+                    val addressName = selectedSuggestion?.name ?: "选定位置"
+                    statusMessage = "模拟定位成功！位置：$addressName，坐标：WGS84($wgsLng, $wgsLat)"
                     addDebugMessage("✅ 模拟定位启动成功")
                     addDebugMessage("📱 最终GPS坐标: WGS84($wgsLng, $wgsLat)")
                     addDebugMessage("🎉 位置一致性保证: 选择位置 = 模拟位置")
+
+                    // 显示Toast提示
+                    android.widget.Toast.makeText(
+                        context,
+                        "模拟定位成功！位置：$addressName",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
                 } catch (e: Exception) {
                     statusMessage = "模拟定位启动失败: ${e.message}"
                     addDebugMessage("❌ 模拟定位启动失败: ${e.message}")
@@ -789,7 +814,14 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                             addDebugMessage("⚠️ 警告: 使用地理编码API，位置可能与建议不同")
 
                             isSimulating = true
-                            statusMessage = "模拟成功: $addressQuery"
+                            statusMessage = "模拟定位成功！位置：$addressQuery，坐标：WGS84($lngWgs, $latWgs)"
+
+                            // 显示Toast提示
+                            android.widget.Toast.makeText(
+                                context,
+                                "模拟定位成功！位置：$addressQuery",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
                         } catch (e: Exception) {
                             addDebugMessage("❌ 模拟定位启动失败: ${e.message}")
                             statusMessage = "模拟失败: ${e.message}"
@@ -880,7 +912,14 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                     addDebugMessage("🎯 模拟坐标设置: WGS84($lngWgs, $latWgs)")
 
                     isSimulating = true
-                    statusMessage = "模拟成功: $coordinateInput"
+                    statusMessage = "模拟定位成功！坐标：WGS84($lngWgs, $latWgs)"
+
+                    // 显示Toast提示
+                    android.widget.Toast.makeText(
+                        context,
+                        "模拟定位成功！坐标：$coordinateInput",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
                 } catch (e: Exception) {
                     addDebugMessage("❌ 模拟定位启动失败: ${e.message}")
                     statusMessage = "模拟失败: ${e.message}"
@@ -1015,7 +1054,9 @@ fun MainScreen(viewModel: MainViewModel) {
 
             StatusCheck(viewModel)
             Spacer(Modifier.height(12.dp))
-            Controls(viewModel, onStartClick = { viewModel.startSimulation(context) })
+
+            // 输入控件（不包含按钮）
+            InputControls(viewModel)
             Spacer(Modifier.height(12.dp))
 
             // 当前位置显示
@@ -1043,6 +1084,11 @@ fun MainScreen(viewModel: MainViewModel) {
 
             Spacer(Modifier.height(8.dp))
             BaiduMapView(modifier = Modifier.weight(1f), isSimulating = false, viewModel = viewModel)
+
+            Spacer(Modifier.height(16.dp))
+
+            // 底部按钮
+            ActionButton(viewModel, onStartClick = { viewModel.toggleSimulation(context) })
         }
     }
 }
@@ -1332,7 +1378,7 @@ fun SimulatingStatus(address: String) {
 }
 
 @Composable
-fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
+fun InputControls(viewModel: MainViewModel) {
     val isAddressMode = viewModel.inputMode == InputMode.ADDRESS
     Column {
         TabRow(
@@ -1352,33 +1398,62 @@ fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
         if (isAddressMode) {
             AddressInputWithSuggestions(viewModel)
         } else {
-            OutlinedTextField(
-                value = viewModel.coordinateInput,
-                onValueChange = { viewModel.onCoordinateInputChange(it) },
-                label = { Text("经度,纬度") },
-                placeholder = { Text("例如: 116.404,39.915") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                colors = textFieldColors()
-            )
+            Column {
+                OutlinedTextField(
+                    value = viewModel.coordinateInput,
+                    onValueChange = { viewModel.onCoordinateInputChange(it) },
+                    label = { Text("经度,纬度") },
+                    placeholder = { Text("例如: 116.404,39.915") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = textFieldColors()
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                // 坐标获取链接按钮
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = {
+                            // 在浏览器中打开百度坐标拾取器
+                            val context = viewModel.application
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                data = android.net.Uri.parse("https://api.map.baidu.com/lbsapi/getpoint/")
+                                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            context.startActivity(intent)
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF007AFF))
+                    ) {
+                        Text("📍 获取坐标", fontSize = 14.sp)
+                    }
+                }
+            }
         }
 
         viewModel.statusMessage?.let {
             Text(it, color = Color.Yellow, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
         }
+    }
+}
 
-        Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = onStartClick,
-            enabled = (isAddressMode && viewModel.addressQuery.isNotBlank()) || (!isAddressMode && viewModel.coordinateInput.isNotBlank()),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2)),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-        ) {
-            Text("开始模拟定位", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        }
+@Composable
+fun ActionButton(viewModel: MainViewModel, onStartClick: () -> Unit) {
+    val isAddressMode = viewModel.inputMode == InputMode.ADDRESS
+
+    Button(
+        onClick = onStartClick,
+        enabled = (isAddressMode && viewModel.addressQuery.isNotBlank()) || (!isAddressMode && viewModel.coordinateInput.isNotBlank()),
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = viewModel.buttonColor),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+    ) {
+        Text(viewModel.buttonText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -1387,7 +1462,7 @@ fun AddressInputWithSuggestions(viewModel: MainViewModel) {
     var showCityDropdown by remember { mutableStateOf(false) }
 
     Column {
-        // 合并的输入框组 - 移除"搜索:"标签
+        // 简化的地址输入框 - 隐藏城市选择器
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1396,8 +1471,8 @@ fun AddressInputWithSuggestions(viewModel: MainViewModel) {
                 .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 城市选择器部分
-            Box {
+            // 城市选择器部分 - 隐藏但保留逻辑
+            Box(modifier = Modifier.size(0.dp)) { // 设置为0大小来隐藏
                 TextButton(
                     onClick = { showCityDropdown = true },
                     colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
@@ -1433,20 +1508,12 @@ fun AddressInputWithSuggestions(viewModel: MainViewModel) {
                 }
             }
 
-            // 分隔线
-            Divider(
-                color = Color.White.copy(alpha = 0.3f),
-                modifier = Modifier
-                    .height(32.dp)
-                    .width(1.dp)
-            )
-
-            // 地址输入框部分
+            // 地址输入框部分 - 占满整个宽度
             BasicTextField(
                 value = viewModel.addressQuery,
                 onValueChange = { viewModel.onAddressQueryChange(it) },
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 16.dp),
                 textStyle = TextStyle(
                     color = Color.White,
