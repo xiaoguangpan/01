@@ -258,6 +258,9 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
                 addDebugMessage("✅ 百度API Key已配置: ${apiKey.take(10)}...")
             }
 
+            // 检查SHA1配置
+            checkSHA1Configuration()
+
             // 先测试SDK状态
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 testSDKInitialization()
@@ -274,6 +277,29 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         }
     }
 
+    // 检查SHA1配置
+    private fun checkSHA1Configuration() {
+        try {
+            addDebugMessage("🔐 检查SHA1安全码配置...")
+
+            val sha1Debug = SHA1Util.getDebugSHA1(application)
+            val sha1Release = SHA1Util.getReleaseSHA1(application)
+            val packageName = application.packageName
+
+            addDebugMessage("📋 当前包名: $packageName")
+            addDebugMessage("🔧 Debug SHA1: $sha1Debug")
+            addDebugMessage("🚀 Release SHA1: $sha1Release")
+
+            addDebugMessage("💡 百度开发者平台安全码格式:")
+            addDebugMessage("   Debug: $sha1Debug;$packageName;应用名称")
+            addDebugMessage("   Release: $sha1Release;$packageName;应用名称")
+            addDebugMessage("🌐 配置地址: https://lbsyun.baidu.com/apiconsole/key")
+
+        } catch (e: Exception) {
+            addDebugMessage("❌ SHA1检查失败: ${e.message}")
+        }
+    }
+
     // 测试SDK是否正确初始化
     private fun testSDKInitialization() {
         try {
@@ -283,7 +309,28 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
             val testSearch = SuggestionSearch.newInstance()
             if (testSearch != null) {
                 addDebugMessage("✅ SDK初始化正常，可以创建搜索实例")
-                testSearch.destroy()
+
+                // 真正的权限测试：尝试发起一个搜索请求
+                addDebugMessage("🔍 测试搜索权限...")
+                testSearch.setOnGetSuggestionResultListener { result ->
+                    if (result?.error == SearchResult.ERRORNO.PERMISSION_UNFINISHED) {
+                        addDebugMessage("❌ 权限测试失败：PERMISSION_UNFINISHED")
+                        addDebugMessage("💡 这说明SHA1安全码配置有问题！")
+                    } else {
+                        addDebugMessage("✅ 权限测试通过")
+                    }
+                }
+
+                // 发起测试搜索
+                val testOption = SuggestionSearchOption()
+                    .keyword("测试")
+                    .city("北京")
+                testSearch.requestSuggestion(testOption)
+
+                // 延迟销毁
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    testSearch.destroy()
+                }, 2000)
             } else {
                 addDebugMessage("❌ SDK初始化异常，无法创建搜索实例")
             }
