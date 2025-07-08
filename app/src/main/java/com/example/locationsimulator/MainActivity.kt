@@ -149,6 +149,19 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         return DeviceCompatibilityManager.getBrandSpecificInstructions(application)
     }
 
+    fun isHyperOSDevice(): Boolean {
+        return DeviceCompatibilityManager.getSystemInfo().brand == DeviceCompatibilityManager.DeviceBrand.XIAOMI_HYPEROS
+    }
+
+    fun getHyperOSWarning(): String {
+        val systemInfo = DeviceCompatibilityManager.getSystemInfo()
+        return if (systemInfo.brand == DeviceCompatibilityManager.DeviceBrand.XIAOMI_HYPEROS) {
+            "⚠️ 检测到HyperOS ${systemInfo.hyperOSVersion ?: "2.0+"}，需要特殊配置才能正常工作"
+        } else {
+            ""
+        }
+    }
+
     fun toggleDebugExpanded() {
         isDebugExpanded = !isDebugExpanded
     }
@@ -1066,6 +1079,12 @@ fun MainScreen(viewModel: MainViewModel) {
             StatusCheck(viewModel)
             Spacer(Modifier.height(12.dp))
 
+            // HyperOS特殊警告
+            if (viewModel.isHyperOSDevice()) {
+                HyperOSWarning(viewModel)
+                Spacer(Modifier.height(12.dp))
+            }
+
             // 输入控件（不包含按钮）
             InputControls(viewModel)
             Spacer(Modifier.height(12.dp))
@@ -1239,6 +1258,51 @@ fun DebugPanel(viewModel: MainViewModel) {
                             lineHeight = 14.sp
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HyperOSWarning(viewModel: MainViewModel) {
+    val warningMessage = viewModel.getHyperOSWarning()
+    if (warningMessage.isNotEmpty()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFF5722).copy(alpha = 0.1f)),
+            border = BorderStroke(1.dp, Color(0xFFFF5722))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = warningMessage,
+                    color = Color(0xFFFF5722),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "请按照下方设置指导完成HyperOS特殊配置",
+                    color = Color(0xFFFF5722),
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                TextButton(
+                    onClick = {
+                        // 显示详细的HyperOS设置指导
+                        android.widget.Toast.makeText(
+                            viewModel.application,
+                            "请查看调试面板中的详细设置指导",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                        viewModel.addDebugMessage("📋 HyperOS设置指导:")
+                        viewModel.addDebugMessage(viewModel.getBrandSpecificInstructions())
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF5722))
+                ) {
+                    Text("查看详细设置指导", fontSize = 12.sp)
                 }
             }
         }

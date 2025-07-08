@@ -1,13 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24"
-    android:tint="@android:color/white">
-    
-    <!-- Material Design Location Icon -->
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 背景圆形渐变 -->
     <path
-        android:fillColor="@android:color/white"
-        android:pathData="M12,2C8.13,2 5,5.13 5,9c0,5.25 7,13 7,13s7,-7.75 7,-13c0,-3.87 -3.13,-7 -7,-7zM12,11.5c-1.38,0 -2.5,-1.12 -2.5,-2.5s1.12,-2.5 2.5,-2.5 2.5,1.12 2.5,2.5 -1.12,2.5 -2.5,2.5z"/>
+        android:pathData="M54,54m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0">
+        <aapt:attr name="android:fillColor" xmlns:aapt="http://schemas.android.com/aapt">
+            <gradient
+                android:startColor="#FF1976D2"
+                android:endColor="#FF0D47A1"
+                android:type="radial"
+                android:centerX="0.5"
+                android:centerY="0.3"
+                android:gradientRadius="50" />
+        </aapt:attr>
+    </path>
+
+    <!-- 外层定位圆环 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,20C40.2,20 29,31.2 29,45c0,20.25 25,43 25,43s25,-22.75 25,-43C79,31.2 67.8,20 54,20z"
+        android:strokeWidth="2"
+        android:strokeColor="#E3F2FD"/>
+
+    <!-- 内部圆点 -->
+    <path
+        android:fillColor="#FF1976D2"
+        android:pathData="M54,45m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0" />
+
+    <!-- 中心高亮点 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,45m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+
+    <!-- 装饰性信号波纹 -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:fillAlpha="0.6"
+        android:pathData="M54,35m-15,0a15,15 0,1 1,30 0a15,15 0,1 1,-30 0"
+        android:strokeWidth="1"
+        android:strokeColor="#29B6F6"
+        android:strokeAlpha="0.8"/>
+
+    <path
+        android:fillColor="#81C784"
+        android:fillAlpha="0.4"
+        android:pathData="M54,35m-20,0a20,20 0,1 1,40 0a20,20 0,1 1,-40 0"
+        android:strokeWidth="1"
+        android:strokeColor="#66BB6A"
+        android:strokeAlpha="0.6"/>
 </vector>
