@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Location Simulator V2</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        /* 状态栏 - 简化为一行 */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        .status-item {
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .status-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .status-enabled {
+            color: #4CAF50;
+        }
+
+        .status-disabled {
+            color: #f44336;
+        }
+
+        /* 选项卡 */
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 25px;
+            padding: 4px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        /* 搜索区域 - 优化布局 */
+        .search-section {
+            margin-bottom: 15px;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        .search-label {
+            font-size: 14px;
+            white-space: nowrap;
+            min-width: 40px;
+        }
+
+        .search-input-group {
+            flex: 1;
+            display: flex;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .city-selector {
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 12px 10px;
+            font-size: 14px;
+            min-width: 80px;
+            border-right: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .city-selector option {
+            background: #2a5298;
+            color: white;
+        }
+
+        .address-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 12px;
+            font-size: 16px;
+            outline: none;
+        }
+
+        .address-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        /* 建议列表 - 限制高度，不遮挡地图 */
+        .suggestions {
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 8px;
+            max-height: 120px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .suggestion-item {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .suggestion-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        /* 地图区域 */
+        .map-container {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+
+        .map {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, #2c3e50, #34495e);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .map-marker {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: #e74c3c;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            border: 3px solid white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+
+        .map-marker::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(45deg);
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+        }
+
+        .map-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        /* 操作按钮 */
+        .action-button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .action-button:hover {
+            background: #0056CC;
+            transform: translateY(-2px);
+        }
+
+        .action-button:disabled {
+            background: rgba(255, 255, 255, 0.3);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 坐标输入模式 */
+        .coordinate-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            color: white;
+            padding: 12px;
+            font-size: 16px;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .coordinate-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">Location Simulator</div>
+        </div>
+
+        <!-- 简化的状态栏 -->
+        <div class="status-bar">
+            <div class="status-item" onclick="toggleDeveloperMode()">
+                开发者模式: <span id="devStatus" class="status-enabled">已开启</span>
+            </div>
+            <div class="status-item" onclick="toggleMockLocation()">
+                模拟定位: <span id="mockStatus" class="status-disabled">未设置</span>
+            </div>
+        </div>
+
+        <!-- 选项卡 -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('address')">地址输入</div>
+            <div class="tab" onclick="switchTab('coordinate')">坐标输入</div>
+        </div>
+
+        <!-- 地址输入模式 -->
+        <div id="addressMode" class="search-section">
+            <div class="search-row">
+                <span class="search-label">搜索:</span>
+                <div class="search-input-group">
+                    <select class="city-selector" id="citySelector" onchange="changeCity()">
+                        <option value="东莞">东莞</option>
+                        <option value="北京">北京</option>
+                        <option value="上海">上海</option>
+                        <option value="广州">广州</option>
+                        <option value="深圳">深圳</option>
+                    </select>
+                    <input type="text" class="address-input" id="addressInput"
+                           placeholder="输入目标地址，如：人民公园"
+                           oninput="searchAddress()" onkeydown="handleKeyDown(event)">
+                </div>
+            </div>
+
+            <!-- 建议列表 - 限制高度 -->
+            <div class="suggestions" id="suggestions"></div>
+        </div>
+
+        <!-- 坐标输入模式 -->
+        <div id="coordinateMode" class="search-section" style="display: none;">
+            <input type="text" class="coordinate-input" id="coordinateInput" 
+                   placeholder="输入坐标，格式：经度,纬度 (如：113.676244,23.111578)" 
+                   oninput="parseCoordinate()">
+        </div>
+
+        <!-- 地图显示区域 -->
+        <div class="map-container">
+            <div class="map" id="map">
+                <div class="map-info" id="mapInfo">当前位置: 东莞市</div>
+                <div class="map-marker" id="mapMarker" style="top: 50%; left: 50%;"></div>
+            </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <button class="action-button" id="actionButton" onclick="startSimulation()">
+            开始模拟定位
+        </button>
+    </div>
+
+    <script>
+        let currentMode = 'address';
+        let selectedLocation = null;
+        let isSimulating = false;
+
+        // 模拟的地址数据
+        const mockAddresses = {
+            '东莞': [
+                { name: '睿博机器人编程 (东莞市)', lat: 23.111578, lng: 113.676244 },
+                { name: '吉利汽车东莞睿博(常平店) (东莞市)', lat: 23.112000, lng: 113.677000 },
+                { name: '睿博机电有限公司 (东莞市)', lat: 23.111000, lng: 113.675000 },
+                { name: '东莞市人民公园', lat: 23.020000, lng: 113.750000 },
+                { name: '东莞市政府', lat: 23.021000, lng: 113.751000 }
+            ],
+            '北京': [
+                { name: '天安门广场', lat: 39.903000, lng: 116.397000 },
+                { name: '故宫博物院', lat: 39.916000, lng: 116.397000 },
+                { name: '北京大学', lat: 39.993000, lng: 116.305000 }
+            ],
+            '上海': [
+                { name: '外滩', lat: 31.240000, lng: 121.490000 },
+                { name: '东方明珠', lat: 31.240000, lng: 121.500000 },
+                { name: '上海迪士尼', lat: 31.150000, lng: 121.660000 }
+            ]
+        };
+
+        // 初始化 - 自动显示当前位置
+        window.onload = function() {
+            // 模拟获取当前位置
+            setTimeout(() => {
+                updateMapLocation(23.111578, 113.676244, '当前位置: 东莞市');
+            }, 1000);
+        };
+
+        function switchTab(mode) {
+            currentMode = mode;
+            
+            // 更新选项卡样式
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // 显示/隐藏对应内容
+            document.getElementById('addressMode').style.display = mode === 'address' ? 'block' : 'none';
+            document.getElementById('coordinateMode').style.display = mode === 'coordinate' ? 'block' : 'none';
+            
+            // 隐藏建议列表
+            document.getElementById('suggestions').style.display = 'none';
+        }
+
+        function changeCity() {
+            const city = document.getElementById('citySelector').value;
+            document.getElementById('addressInput').placeholder = `输入${city}的地址，如：人民公园`;
+            // 清空输入和建议
+            document.getElementById('addressInput').value = '';
+            document.getElementById('suggestions').style.display = 'none';
+        }
+
+        function searchAddress() {
+            const input = document.getElementById('addressInput').value.trim();
+            const city = document.getElementById('citySelector').value;
+            const suggestionsDiv = document.getElementById('suggestions');
+            
+            if (input.length < 1) {
+                suggestionsDiv.style.display = 'none';
+                return;
+            }
+            
+            // 模拟搜索
+            const addresses = mockAddresses[city] || [];
+            const filtered = addresses.filter(addr => 
+                addr.name.toLowerCase().includes(input.toLowerCase())
+            );
+            
+            if (filtered.length > 0) {
+                suggestionsDiv.innerHTML = filtered.map(addr => 
+                    `<div class="suggestion-item" onclick="selectAddress('${addr.name}', ${addr.lat}, ${addr.lng})">${addr.name}</div>`
+                ).join('');
+                suggestionsDiv.style.display = 'block';
+            } else {
+                suggestionsDiv.style.display = 'none';
+            }
+        }
+
+        function selectAddress(name, lat, lng) {
+            selectedLocation = { name, lat, lng };
+            document.getElementById('addressInput').value = name;
+            document.getElementById('suggestions').style.display = 'none';
+            
+            // 更新地图显示
+            updateMapLocation(lat, lng, `选择位置: ${name}`);
+        }
+
+        function parseCoordinate() {
+            const input = document.getElementById('coordinateInput').value.trim();
+            const coords = input.split(',');
+            
+            if (coords.length === 2) {
+                const lng = parseFloat(coords[0]);
+                const lat = parseFloat(coords[1]);
+                
+                if (!isNaN(lng) && !isNaN(lat)) {
+                    selectedLocation = { name: `坐标: ${lng}, ${lat}`, lat, lng };
+                    updateMapLocation(lat, lng, `坐标位置: ${lng}, ${lat}`);
+                }
+            }
+        }
+
+        function updateMapLocation(lat, lng, info) {
+            const marker = document.getElementById('mapMarker');
+            const mapInfo = document.getElementById('mapInfo');
+            
+            // 计算标记位置（模拟地图坐标转换）
+            const x = ((lng - 113.0) / 2.0) * 100; // 简化的坐标转换
+            const y = ((lat - 23.0) / 1.0) * 100;
+            
+            marker.style.left = Math.max(10, Math.min(90, 50 + x)) + '%';
+            marker.style.top = Math.max(10, Math.min(90, 50 - y)) + '%';
+            
+            mapInfo.textContent = info;
+            
+            // 添加动画效果
+            marker.style.transform = 'scale(1.2)';
+            setTimeout(() => {
+                marker.style.transform = 'scale(1)';
+            }, 300);
+        }
+
+        function handleKeyDown(event) {
+            if (event.key === 'Enter') {
+                const suggestions = document.querySelectorAll('.suggestion-item');
+                if (suggestions.length > 0) {
+                    suggestions[0].click();
+                }
+            }
+        }
+
+        function toggleDeveloperMode() {
+            const status = document.getElementById('devStatus');
+            const isEnabled = status.classList.contains('status-enabled');
+            
+            if (isEnabled) {
+                status.textContent = '未开启';
+                status.className = 'status-disabled';
+            } else {
+                status.textContent = '已开启';
+                status.className = 'status-enabled';
+            }
+        }
+
+        function toggleMockLocation() {
+            const status = document.getElementById('mockStatus');
+            const isEnabled = status.classList.contains('status-enabled');
+            
+            if (isEnabled) {
+                status.textContent = '未设置';
+                status.className = 'status-disabled';
+            } else {
+                status.textContent = '已设置';
+                status.className = 'status-enabled';
+            }
+        }
+
+        function startSimulation() {
+            const button = document.getElementById('actionButton');
+            
+            if (!selectedLocation) {
+                alert('请先选择一个位置');
+                return;
+            }
+            
+            if (!isSimulating) {
+                // 开始模拟
+                isSimulating = true;
+                button.textContent = '停止模拟定位';
+                button.style.background = '#ff4444';
+                
+                // 模拟开始定位
+                console.log(`开始模拟定位到: ${selectedLocation.name} (${selectedLocation.lat}, ${selectedLocation.lng})`);
+                
+            } else {
+                // 停止模拟
+                isSimulating = false;
+                button.textContent = '开始模拟定位';
+                button.style.background = '#007AFF';
+                
+                console.log('停止模拟定位');
+            }
+        }
+    </script>
+</body>
+</html>

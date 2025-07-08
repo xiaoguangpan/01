@@ -12,11 +12,13 @@ import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.TextButton
@@ -36,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -215,6 +218,13 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         selectedSuggestion = suggestion
         addressQuery = suggestion.name
         suggestions = emptyList()
+
+        // 如果建议包含坐标信息，更新地图位置
+        if (suggestion.latitude != null && suggestion.longitude != null) {
+            currentLatitude = suggestion.latitude
+            currentLongitude = suggestion.longitude
+            addDebugMessage("🗺️ 地图位置已更新: (${suggestion.longitude}, ${suggestion.latitude})")
+        }
     }
 
     fun setInputMode(mode: InputMode) {
@@ -236,7 +246,10 @@ class MainViewModel(private val application: android.app.Application) : ViewMode
         addDebugMessage("📋 包名: com.example.locationsimulator")
         initBaiduSDK()
         // 应用启动时自动获取当前位置
-        getCurrentLocation(application)
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            addDebugMessage("🌍 自动获取当前位置...")
+            getCurrentLocation(application)
+        }, 2000) // 延迟2秒确保SDK初始化完成
     }
 
     private fun initBaiduSDK() {
@@ -951,6 +964,31 @@ fun MainScreen(viewModel: MainViewModel) {
             Spacer(Modifier.height(12.dp))
             Controls(viewModel, onStartClick = { viewModel.startSimulation(context) })
             Spacer(Modifier.height(12.dp))
+
+            // 当前位置显示
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF374151))
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "当前位置: ",
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = if (viewModel.addressQuery.isNotEmpty()) viewModel.addressQuery else "${viewModel.currentSearchCity}市",
+                    color = Color.Yellow,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
             BaiduMapView(modifier = Modifier.weight(1f), isSimulating = false, viewModel = viewModel)
         }
     }
@@ -1148,29 +1186,62 @@ fun StatusCheck(viewModel: MainViewModel) {
         }
     }
 
-    Column(
+    // 简化为一行显示的状态栏
+    Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
             .background(Color.White.copy(alpha = 0.1f))
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        StatusRow(
-            title = "开发者模式",
-            status = if (isDeveloperModeEnabled) "已开启" else "未开启",
-            statusColor = if (isDeveloperModeEnabled) Color(0xFF4CAF50) else Color(0xFFF44336),
-            onClick = {
-                context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
-            }
-        )
-        Divider(color = Color.White.copy(alpha = 0.2f), thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
-        StatusRow(
-            title = "模拟定位应用",
-            status = if (isMockLocationAppSet) "已设置" else "未设置",
-            statusColor = if (isMockLocationAppSet) Color(0xFF4CAF50) else Color(0xFFFB8C00),
-            onClick = {
-                context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
-            }
-        )
+        // 开发者模式状态
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White.copy(alpha = 0.1f))
+                .clickable {
+                    context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+                }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "开发者模式: ",
+                color = Color.White,
+                fontSize = 14.sp
+            )
+            Text(
+                text = if (isDeveloperModeEnabled) "已开启" else "未开启",
+                color = if (isDeveloperModeEnabled) Color(0xFF4CAF50) else Color(0xFFF44336),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // 模拟定位应用状态
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White.copy(alpha = 0.1f))
+                .clickable {
+                    context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+                }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "模拟定位: ",
+                color = Color.White,
+                fontSize = 14.sp
+            )
+            Text(
+                text = if (isMockLocationAppSet) "已设置" else "未设置",
+                color = if (isMockLocationAppSet) Color(0xFF4CAF50) else Color(0xFFFB8C00),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
@@ -1227,20 +1298,6 @@ fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
 
         if (isAddressMode) {
             AddressInputWithSuggestions(viewModel)
-            Spacer(Modifier.height(8.dp))
-            // 获取当前位置按钮
-            val context = LocalContext.current
-            OutlinedButton(
-                onClick = { viewModel.getCurrentLocation(context) },
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color.White
-                ),
-                border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.foundation.BorderStroke(1.dp, Color.White).brush),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("获取当前位置", fontSize = 14.sp)
-            }
         } else {
             OutlinedTextField(
                 value = viewModel.coordinateInput,
@@ -1267,7 +1324,7 @@ fun Controls(viewModel: MainViewModel, onStartClick: () -> Unit) {
                 .fillMaxWidth()
                 .height(56.dp)
         ) {
-            Text("开始模拟", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("开始模拟定位", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -1277,66 +1334,96 @@ fun AddressInputWithSuggestions(viewModel: MainViewModel) {
     var showCityDropdown by remember { mutableStateOf(false) }
 
     Column {
-        // 城市选择器
+        // 合并的搜索输入区域
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "搜索城市:",
+                text = "搜索:",
                 color = Color.White,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(end = 8.dp)
             )
 
-            Box(modifier = Modifier.weight(1f)) {
-                OutlinedButton(
-                    onClick = { showCityDropdown = true },
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color.White
-                    ),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.foundation.BorderStroke(1.dp, Color.White).brush),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("${viewModel.currentSearchCity} ▼", fontSize = 14.sp)
-                }
-
-                DropdownMenu(
-                    expanded = showCityDropdown,
-                    onDismissRequest = { showCityDropdown = false },
-                    modifier = Modifier
-                        .background(Color(0xFF2D3748))
-                        .heightIn(max = 300.dp)
-                ) {
-                    viewModel.popularCities.forEach { city ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    city,
-                                    color = if (city == viewModel.currentSearchCity) Color.Yellow else Color.White
-                                )
-                            },
-                            onClick = {
-                                viewModel.updateSearchCity(city)
-                                showCityDropdown = false
-                            }
+            // 合并的输入框组
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.1f))
+                    .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 城市选择器部分
+                Box {
+                    TextButton(
+                        onClick = { showCityDropdown = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    ) {
+                        Text(
+                            text = "${viewModel.currentSearchCity} ▼",
+                            fontSize = 14.sp
                         )
                     }
+
+                    DropdownMenu(
+                        expanded = showCityDropdown,
+                        onDismissRequest = { showCityDropdown = false },
+                        modifier = Modifier
+                            .background(Color(0xFF2D3748))
+                            .heightIn(max = 300.dp)
+                    ) {
+                        viewModel.popularCities.forEach { city ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        city,
+                                        color = if (city == viewModel.currentSearchCity) Color.Yellow else Color.White
+                                    )
+                                },
+                                onClick = {
+                                    viewModel.updateSearchCity(city)
+                                    showCityDropdown = false
+                                }
+                            )
+                        }
+                    }
                 }
+
+                // 分隔线
+                Divider(
+                    color = Color.White.copy(alpha = 0.3f),
+                    modifier = Modifier
+                        .height(24.dp)
+                        .width(1.dp)
+                )
+
+                // 地址输入框部分
+                BasicTextField(
+                    value = viewModel.addressQuery,
+                    onValueChange = { viewModel.onAddressQueryChange(it) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp, vertical = 16.dp),
+                    textStyle = TextStyle(
+                        color = Color.White,
+                        fontSize = 16.sp
+                    ),
+                    decorationBox = { innerTextField ->
+                        if (viewModel.addressQuery.isEmpty()) {
+                            Text(
+                                text = "输入目标地址，如：人民公园",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 16.sp
+                            )
+                        }
+                        innerTextField()
+                    }
+                )
             }
         }
-
-        Spacer(Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = viewModel.addressQuery,
-            onValueChange = { viewModel.onAddressQueryChange(it) },
-            label = { Text("输入目标地址") },
-            placeholder = { Text("例如：天安门、人民公园") },
-            modifier = Modifier.fillMaxWidth(),
-            colors = textFieldColors()
-        )
 
         if (viewModel.suggestions.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
@@ -1344,7 +1431,7 @@ fun AddressInputWithSuggestions(viewModel: MainViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFF2D3748), shape = RoundedCornerShape(8.dp))
-                    .heightIn(max = 200.dp)
+                    .heightIn(max = 120.dp) // 限制高度，不遮挡地图
             ) {
                 items(viewModel.suggestions) { suggestion ->
                     val displayText = if (suggestion.city != null && suggestion.district != null) {
