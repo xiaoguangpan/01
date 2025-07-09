@@ -49,28 +49,25 @@ object StandardMockLocationManager {
      * 检查是否具备模拟定位的基本条件
      */
     fun checkMockLocationPermissions(context: Context): MockLocationStatus {
-        // 1. 检查是否有ACCESS_MOCK_LOCATION权限
-        if (ContextCompat.checkSelfPermission(context, "android.permission.ACCESS_MOCK_LOCATION")
-            != PackageManager.PERMISSION_GRANTED) {
-            return MockLocationStatus.NO_PERMISSION
-        }
-        
-        // 2. 检查是否启用了开发者选项
+        // 1. 检查是否启用了开发者选项
         if (!isDeveloperOptionsEnabled(context)) {
             return MockLocationStatus.DEVELOPER_OPTIONS_DISABLED
         }
-        
-        // 3. 检查是否选择了模拟定位应用
+
+        // 2. 检查是否选择了模拟定位应用
         if (!isMockLocationAppSelected(context)) {
             return MockLocationStatus.MOCK_APP_NOT_SELECTED
         }
-        
-        // 4. 检查LocationManager是否可用
+
+        // 3. 检查LocationManager是否可用
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         if (locationManager == null) {
             return MockLocationStatus.LOCATION_SERVICE_UNAVAILABLE
         }
-        
+
+        // 4. ACCESS_MOCK_LOCATION权限在AndroidManifest.xml中声明即可，无需运行时检查
+        // 该权限是系统级权限，通过开发者选项中的"选择模拟定位应用"来授予
+
         return MockLocationStatus.READY
     }
     

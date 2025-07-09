@@ -1670,14 +1670,37 @@ fun DebugPanel(viewModel: MainViewModel) {
 // 辅助函数：检查模拟定位应用状态
 private fun checkMockLocationAppStatus(context: Context): Boolean {
     return try {
+        // 方法1：检查Settings.Secure中的模拟定位应用设置
+        val mockLocationApp = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ALLOW_MOCK_LOCATION
+        )
+
+        // 方法2：使用AppOpsManager检查权限
         val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
         val result = appOpsManager.checkOp(
             AppOpsManager.OPSTR_MOCK_LOCATION,
             android.os.Process.myUid(),
             context.packageName
         )
-        result == AppOpsManager.MODE_ALLOWED
+
+        // 方法3：检查系统设置中的选择应用
+        val selectedApp = try {
+            Settings.Secure.getString(context.contentResolver, "mock_location_app")
+        } catch (e: Exception) {
+            null
+        }
+
+        // 如果任一方法检测到应用被选择，则返回true
+        val isSelected = result == AppOpsManager.MODE_ALLOWED ||
+                        context.packageName == selectedApp ||
+                        mockLocationApp == "1"
+
+        Log.d("MockLocationCheck", "AppOps result: $result, Selected app: $selectedApp, Package: ${context.packageName}, Final result: $isSelected")
+
+        isSelected
     } catch (e: Exception) {
+        Log.e("MockLocationCheck", "Error checking mock location status: ${e.message}", e)
         false
     }
 }
@@ -2109,7 +2132,7 @@ fun CurrentLocationDisplay(viewModel: MainViewModel) {
             )
             Spacer(modifier = Modifier.width(Constants.Dimensions.PADDING_SMALL.dp))
             Text(
-                text = "当前位置: ${if (viewModel.addressQuery.isNotEmpty()) viewModel.addressQuery else "${viewModel.currentSearchCity}市"} (点击5次显示调试)",
+                text = "当前位置: ${if (viewModel.addressQuery.isNotEmpty()) viewModel.addressQuery else "${viewModel.currentSearchCity}市"}",
                 color = Color.White,
                 fontSize = 14.sp,
                 modifier = Modifier.weight(1f)

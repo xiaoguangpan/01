@@ -256,9 +256,16 @@ object UnifiedMockLocationManager {
             MockLocationStatus.NO_PERMISSION -> {
                 instructions.add(
                     SetupInstruction(
-                        title = "权限问题",
-                        description = "应用缺少必要的模拟定位权限，请重新安装应用",
-                        action = null
+                        title = "权限配置",
+                        description = "ACCESS_MOCK_LOCATION权限已在AndroidManifest.xml中声明，请确保在开发者选项中选择了本应用作为模拟定位应用",
+                        action = {
+                            try {
+                                val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "无法打开开发者选项页面", e)
+                            }
+                        }
                     )
                 )
             }
