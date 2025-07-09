@@ -10,12 +10,16 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
 /**
- * 统一模拟定位管理器
- * 
- * 整合多种模拟定位方案，自动选择最佳策略：
- * 1. 标准模拟定位（推荐）
- * 2. 增强兼容模式（国产手机优化）
- * 3. Shizuku模式（备用方案）
+ * 统一模拟定位管理器 - 简化两模式策略
+ *
+ * 采用直接有效的两模式方案：
+ * 1. Primary Mode: 高级反检测模式 (AntiDetectionMockLocationManager) - 默认使用最强防检测技术
+ * 2. Fallback Mode: Shizuku模式 (MockLocationManager) - 系统级权限，最高成功率
+ *
+ * 设计理念：
+ * - 无需逐级尝试，直接使用最强可用方法
+ * - 避免复杂的策略选择逻辑
+ * - 提供明确的成功/失败反馈和设置指导
  */
 object UnifiedMockLocationManager {
     
@@ -40,56 +44,47 @@ object UnifiedMockLocationManager {
     private var retryShizukuMode = false
     
     /**
-     * 智能启动模拟定位
-     * 自动选择最佳策略
+     * 简化的两模式启动策略
+     * Primary Mode: 高级反检测模式 (最强防检测)
+     * Fallback Mode: Shizuku模式 (系统级权限)
      */
     fun start(context: Context, latitude: Double, longitude: Double): MockLocationResult {
-        Log.d(TAG, "🚀 统一模拟定位启动: $latitude, $longitude")
-        
+        Log.d(TAG, "🚀 简化模拟定位启动: $latitude, $longitude")
+
         stop(context) // 先停止之前的模拟
-        
+
         currentLatitude = latitude
         currentLongitude = longitude
-        
-        // 策略1: 尝试标准模拟定位
+
+        // 检查基础权限状态
         val standardStatus = StandardMockLocationManager.checkMockLocationPermissions(context)
-        if (standardStatus == MockLocationStatus.READY) {
-            if (StandardMockLocationManager.start(context, latitude, longitude)) {
-                currentStrategy = MockLocationStrategy.STANDARD
-                isRunning = true
-                startMonitoring(context)
-                Log.d(TAG, "✅ 使用标准模拟定位策略")
-                return MockLocationResult.Success(MockLocationStrategy.STANDARD)
-            }
+        if (standardStatus != MockLocationStatus.READY) {
+            Log.w(TAG, "⚠️ 基础权限不满足: ${standardStatus.message}")
+            return MockLocationResult.Failure(standardStatus, getSetupInstructions(context, standardStatus))
         }
-        
-        // 策略2: 尝试高级反检测模式
+
+        // Primary Mode: 高级反检测模式 (默认使用最强方法)
+        Log.d(TAG, "🛡️ 尝试高级反检测模式 (Primary Mode)")
         if (AntiDetectionMockLocationManager.startAntiDetection(context, latitude, longitude)) {
             currentStrategy = MockLocationStrategy.ANTI_DETECTION
             isRunning = true
             startMonitoring(context)
-            Log.d(TAG, "✅ 使用高级反检测模式策略")
+            Log.d(TAG, "✅ 使用高级反检测模式")
             return MockLocationResult.Success(MockLocationStrategy.ANTI_DETECTION)
         }
 
-        // 策略3: 尝试增强兼容模式
-        if (EnhancedMockLocationManager.smartStart(context, latitude, longitude)) {
-            currentStrategy = MockLocationStrategy.ENHANCED
-            isRunning = true
-            startMonitoring(context)
-            Log.d(TAG, "✅ 使用增强兼容模式策略")
-            return MockLocationResult.Success(MockLocationStrategy.ENHANCED)
-        }
-        
-        // 策略4: 尝试Shizuku模式（如果可用）
+        // Fallback Mode: Shizuku模式 (如果可用且配置正确)
         val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus()
+        Log.d(TAG, "🔧 检查Shizuku模式 (Fallback Mode): ${shizukuStatus.message}")
+
         when (shizukuStatus) {
             ShizukuStatus.READY -> {
+                Log.d(TAG, "🚀 尝试Shizuku模式")
                 if (MockLocationManager.start(context, latitude, longitude)) {
                     currentStrategy = MockLocationStrategy.SHIZUKU
                     isRunning = true
                     startMonitoring(context)
-                    Log.d(TAG, "✅ 使用Shizuku模式策略")
+                    Log.d(TAG, "✅ 使用Shizuku模式")
                     return MockLocationResult.Success(MockLocationStrategy.SHIZUKU)
                 }
             }
@@ -103,16 +98,16 @@ object UnifiedMockLocationManager {
                 Log.w(TAG, "Shizuku不可用: ${shizukuStatus.message}")
             }
         }
-        
-        // 所有策略都失败，但如果Shizuku可以配置，提供相应指导
-        Log.e(TAG, "❌ 所有模拟定位策略都失败")
+
+        // 两种模式都失败，提供设置指导
+        Log.e(TAG, "❌ 两种模拟定位模式都失败")
 
         val instructions = if (shizukuStatus != ShizukuStatus.NOT_INSTALLED) {
             // Shizuku已安装，提供配置指导
             getShizukuSetupInstructions(context, shizukuStatus)
         } else {
-            // 标准设置指导
-            getSetupInstructions(context, standardStatus)
+            // 提供Shizuku安装指导
+            getShizukuInstallInstructions(context)
         }
 
         // 启动Shizuku状态监控，以便用户配置后自动重试
@@ -146,21 +141,21 @@ object UnifiedMockLocationManager {
             
             // 根据当前策略停止相应的服务
             when (currentStrategy) {
-                MockLocationStrategy.STANDARD -> {
-                    StandardMockLocationManager.stop(context)
-                }
                 MockLocationStrategy.ANTI_DETECTION -> {
                     AntiDetectionMockLocationManager.stop(context)
-                }
-                MockLocationStrategy.ENHANCED -> {
-                    // EnhancedMockLocationManager 没有独立的stop方法，使用标准方式清理
-                    StandardMockLocationManager.stop(context)
                 }
                 MockLocationStrategy.SHIZUKU -> {
                     MockLocationManager.stop(context)
                 }
                 MockLocationStrategy.NONE -> {
                     // 无需操作
+                }
+                // 兼容性处理 - 已弃用的策略
+                MockLocationStrategy.STANDARD -> {
+                    StandardMockLocationManager.stop(context)
+                }
+                MockLocationStrategy.ENHANCED -> {
+                    StandardMockLocationManager.stop(context)
                 }
             }
             
@@ -184,21 +179,21 @@ object UnifiedMockLocationManager {
         currentLongitude = longitude
         
         when (currentStrategy) {
-            MockLocationStrategy.STANDARD -> {
-                StandardMockLocationManager.updateLocation(latitude, longitude)
-            }
             MockLocationStrategy.ANTI_DETECTION -> {
                 AntiDetectionMockLocationManager.updateLocation(latitude, longitude)
-            }
-            MockLocationStrategy.ENHANCED -> {
-                // 重新启动增强模式
-                EnhancedMockLocationManager.smartStart(context, latitude, longitude)
             }
             MockLocationStrategy.SHIZUKU -> {
                 // Shizuku模式通过定时任务自动更新
             }
             MockLocationStrategy.NONE -> {
                 // 无需操作
+            }
+            // 兼容性处理 - 已弃用的策略
+            MockLocationStrategy.STANDARD -> {
+                StandardMockLocationManager.updateLocation(latitude, longitude)
+            }
+            MockLocationStrategy.ENHANCED -> {
+                EnhancedMockLocationManager.smartStart(context, latitude, longitude)
             }
         }
         
@@ -309,21 +304,24 @@ object UnifiedMockLocationManager {
             try {
                 // 监控模拟定位状态，必要时重新设置
                 when (currentStrategy) {
-                    MockLocationStrategy.STANDARD -> {
-                        if (!StandardMockLocationManager.isRunning()) {
-                            Log.w(TAG, "标准模拟定位意外停止，尝试重启")
-                            StandardMockLocationManager.start(context, currentLatitude, currentLongitude)
+                    MockLocationStrategy.ANTI_DETECTION -> {
+                        if (!AntiDetectionMockLocationManager.isRunning()) {
+                            Log.w(TAG, "反检测模拟定位意外停止，尝试重启")
+                            AntiDetectionMockLocationManager.startAntiDetection(context, currentLatitude, currentLongitude)
                         }
-                    }
-                    MockLocationStrategy.ENHANCED -> {
-                        // 增强模式定期重新设置以确保稳定性
-                        EnhancedMockLocationManager.smartStart(context, currentLatitude, currentLongitude)
                     }
                     MockLocationStrategy.SHIZUKU -> {
                         // Shizuku模式有自己的监控机制
                     }
                     MockLocationStrategy.NONE -> {
                         // 无需监控
+                    }
+                    // 兼容性处理 - 已弃用的策略
+                    MockLocationStrategy.STANDARD -> {
+                        Log.w(TAG, "使用已弃用的标准模式，建议升级到反检测模式")
+                    }
+                    MockLocationStrategy.ENHANCED -> {
+                        Log.w(TAG, "使用已弃用的增强模式，建议升级到反检测模式")
                     }
                 }
             } catch (e: Exception) {
@@ -394,6 +392,26 @@ object UnifiedMockLocationManager {
     }
 
     /**
+     * 获取Shizuku安装指导
+     */
+    private fun getShizukuInstallInstructions(context: Context): List<SetupInstruction> {
+        return listOf(
+            SetupInstruction(
+                title = "安装Shizuku应用",
+                description = "为了获得最佳的模拟定位效果，建议安装Shizuku应用",
+                action = {
+                    showShizukuSetupGuide(context)
+                }
+            ),
+            SetupInstruction(
+                title = "当前使用反检测模式",
+                description = "应用已尝试使用高级反检测技术，但可能在某些应用中被检测到",
+                action = null
+            )
+        )
+    }
+
+    /**
      * 显示Shizuku设置指导
      */
     private fun showShizukuSetupGuide(context: Context) {
@@ -441,10 +459,13 @@ object UnifiedMockLocationManager {
  */
 enum class MockLocationStrategy(val displayName: String) {
     NONE("未启用"),
+    ANTI_DETECTION("高级反检测模式 (Primary)"),
+    SHIZUKU("Shizuku模式 (Fallback)"),
+    // 保留兼容性，但不在新策略中使用
+    @Deprecated("使用简化的两模式策略")
     STANDARD("标准模式"),
-    ANTI_DETECTION("高级反检测模式"),
-    ENHANCED("增强兼容模式"),
-    SHIZUKU("Shizuku模式")
+    @Deprecated("使用简化的两模式策略")
+    ENHANCED("增强兼容模式")
 }
 
 /**

@@ -37,7 +37,7 @@ object MockLocationManager {
         synchronized(this) {
             if (isRunning) {
                 Log.w(TAG, "模拟定位已在运行中")
-                return
+                return true
             }
 
             isRunning = true

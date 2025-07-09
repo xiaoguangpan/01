@@ -50,7 +50,7 @@ object StandardMockLocationManager {
      */
     fun checkMockLocationPermissions(context: Context): MockLocationStatus {
         // 1. 检查是否有ACCESS_MOCK_LOCATION权限
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_MOCK_LOCATION) 
+        if (ContextCompat.checkSelfPermission(context, "android.permission.ACCESS_MOCK_LOCATION")
             != PackageManager.PERMISSION_GRANTED) {
             return MockLocationStatus.NO_PERMISSION
         }
