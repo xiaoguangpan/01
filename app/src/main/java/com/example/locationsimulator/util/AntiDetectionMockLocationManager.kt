@@ -44,6 +44,11 @@ object AntiDetectionMockLocationManager {
     private var enableNoiseSimulation = true
     private var enableSignalStrengthSimulation = true
     private var enableProviderRotation = true
+    private var enableAirplaneModeSimulation = true
+
+    // 飞行模式模拟状态
+    private var originalAirplaneModeState = false
+    private var airplaneModeSimulationActive = false
     
     /**
      * 启动高级反检测模拟定位
@@ -61,15 +66,20 @@ object AntiDetectionMockLocationManager {
             if (!bypassDeveloperOptionsDetection(context)) {
                 Log.w(TAG, "⚠️ 无法完全隐藏开发者选项，继续尝试其他方法")
             }
-            
-            // 2. 设置反检测模拟定位
+
+            // 2. 基于DingTalk测试发现：模拟飞行模式切换来绕过检测
+            if (enableAirplaneModeSimulation) {
+                performAirplaneModeAntiDetection(context)
+            }
+
+            // 3. 设置反检测模拟定位
             if (setupAntiDetectionMockLocation(context, latitude, longitude)) {
                 isRunning = true
                 startAdvancedLocationSimulation(context)
                 Log.d(TAG, "✅ 高级反检测模拟定位启动成功")
                 return true
             }
-            
+
             false
         } catch (e: Exception) {
             Log.e(TAG, "❌ 高级反检测模拟定位启动失败: ${e.message}", e)
@@ -100,9 +110,136 @@ object AntiDetectionMockLocationManager {
         
         // 清理模拟定位
         cleanupMockLocation(context)
+
+        // 恢复飞行模式状态
+        if (airplaneModeSimulationActive) {
+            restoreAirplaneModeState(context)
+        }
+
         Log.d(TAG, "🛑 高级反检测模拟定位已停止")
     }
     
+    /**
+     * 基于DingTalk测试发现的飞行模式反检测方法
+     *
+     * 发现：当DingTalk显示"疑似作弊"警告时，执行以下步骤可以绕过检测：
+     * 1. 启用飞行模式
+     * 2. 重新打开模拟定位应用
+     * 3. 启动目标应用（如DingTalk）
+     *
+     * 原理：飞行模式会重置网络连接状态，可能清除某些检测缓存
+     */
+    private fun performAirplaneModeAntiDetection(context: Context) {
+        try {
+            Log.d(TAG, "🛩️ 执行飞行模式反检测策略")
+
+            // 保存当前飞行模式状态
+            originalAirplaneModeState = isAirplaneModeOn(context)
+            Log.d(TAG, "📱 当前飞行模式状态: ${if (originalAirplaneModeState) "开启" else "关闭"}")
+
+            if (!originalAirplaneModeState) {
+                // 如果飞行模式未开启，则短暂开启后关闭
+                Log.d(TAG, "🔄 模拟飞行模式切换以绕过检测...")
+
+                // 尝试开启飞行模式（需要系统权限）
+                if (setAirplaneMode(context, true)) {
+                    Log.d(TAG, "✈️ 飞行模式已开启")
+                    airplaneModeSimulationActive = true
+
+                    // 延迟2秒后关闭飞行模式
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        try {
+                            setAirplaneMode(context, false)
+                            Log.d(TAG, "📶 飞行模式已关闭，网络连接恢复")
+                            Log.d(TAG, "🎯 飞行模式反检测策略执行完成")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "关闭飞行模式失败: ${e.message}")
+                        }
+                    }, 2000)
+                } else {
+                    Log.w(TAG, "⚠️ 无法控制飞行模式，可能需要系统权限")
+                    Log.d(TAG, "💡 建议用户手动执行：开启飞行模式 → 等待2秒 → 关闭飞行模式")
+                }
+            } else {
+                Log.d(TAG, "✈️ 飞行模式已开启，无需额外操作")
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "飞行模式反检测失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 检查飞行模式是否开启
+     */
+    private fun isAirplaneModeOn(context: Context): Boolean {
+        return try {
+            Settings.Global.getInt(
+                context.contentResolver,
+                Settings.Global.AIRPLANE_MODE_ON,
+                0
+            ) != 0
+        } catch (e: Exception) {
+            Log.w(TAG, "检查飞行模式状态失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 设置飞行模式状态
+     */
+    private fun setAirplaneMode(context: Context, enabled: Boolean): Boolean {
+        return try {
+            // 方法1: 尝试通过Settings.Global设置（需要WRITE_SECURE_SETTINGS权限）
+            Settings.Global.putInt(
+                context.contentResolver,
+                Settings.Global.AIRPLANE_MODE_ON,
+                if (enabled) 1 else 0
+            )
+
+            // 发送飞行模式变化广播
+            val intent = android.content.Intent(android.content.Intent.ACTION_AIRPLANE_MODE_CHANGED)
+            intent.putExtra("state", enabled)
+            context.sendBroadcast(intent)
+
+            Log.d(TAG, "✅ 飞行模式设置成功: ${if (enabled) "开启" else "关闭"}")
+            true
+        } catch (e: SecurityException) {
+            Log.w(TAG, "设置飞行模式需要系统权限: ${e.message}")
+
+            // 方法2: 尝试通过反射调用系统方法
+            try {
+                val connectivityManagerClass = Class.forName("android.net.ConnectivityManager")
+                val setAirplaneModeMethod = connectivityManagerClass.getMethod("setAirplaneMode", Boolean::class.javaPrimitiveType)
+                val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE)
+                setAirplaneModeMethod.invoke(connectivityManager, enabled)
+                Log.d(TAG, "✅ 通过反射设置飞行模式成功")
+                true
+            } catch (e2: Exception) {
+                Log.w(TAG, "反射设置飞行模式失败: ${e2.message}")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "设置飞行模式失败: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * 恢复飞行模式状态
+     */
+    private fun restoreAirplaneModeState(context: Context) {
+        try {
+            if (airplaneModeSimulationActive) {
+                Log.d(TAG, "🔄 恢复原始飞行模式状态: ${if (originalAirplaneModeState) "开启" else "关闭"}")
+                setAirplaneMode(context, originalAirplaneModeState)
+                airplaneModeSimulationActive = false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "恢复飞行模式状态失败: ${e.message}", e)
+        }
+    }
+
     /**
      * 绕过开发者选项检测
      */
@@ -378,13 +515,15 @@ object AntiDetectionMockLocationManager {
     fun configureAntiDetection(
         enableNoise: Boolean = true,
         enableSignalStrength: Boolean = true,
-        enableProviderRotation: Boolean = true
+        enableProviderRotation: Boolean = true,
+        enableAirplaneMode: Boolean = true
     ) {
         enableNoiseSimulation = enableNoise
         enableSignalStrengthSimulation = enableSignalStrength
         this.enableProviderRotation = enableProviderRotation
-        
-        Log.d(TAG, "🔧 反检测配置更新: 噪声=$enableNoise, 信号强度=$enableSignalStrength, 提供者轮换=$enableProviderRotation")
+        enableAirplaneModeSimulation = enableAirplaneMode
+
+        Log.d(TAG, "🔧 反检测配置更新: 噪声=$enableNoise, 信号强度=$enableSignalStrength, 提供者轮换=$enableProviderRotation, 飞行模式=$enableAirplaneMode")
     }
     
     fun isRunning(): Boolean = isRunning

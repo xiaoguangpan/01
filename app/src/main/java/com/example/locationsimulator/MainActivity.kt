@@ -31,6 +31,8 @@ import android.content.ClipboardManager
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.viewinterop.AndroidView
+import android.app.AppOpsManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -75,6 +78,16 @@ import rikka.shizuku.Shizuku
 
 // region ViewModel
 enum class InputMode { ADDRESS, COORDINATE }
+
+// 收藏位置数据类
+data class FavoriteLocation(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String,
+    val address: String,
+    val latitude: Double,
+    val longitude: Double,
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 class MainViewModel(val application: android.app.Application) : ViewModel() {
     var isSimulating by mutableStateOf(false)
@@ -120,6 +133,13 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     var currentLongitude by mutableStateOf(116.404) // 默认北京经度 (BD09坐标系，用于地图显示)
         private set
 
+    // Favorites State
+    var favoriteLocations by mutableStateOf<List<FavoriteLocation>>(emptyList())
+        private set
+
+    var showFavoritesDialog by mutableStateOf(false)
+        private set
+
     // 用于模拟定位的WGS84坐标
     private var simulationLatitude: Double = 39.915
     private var simulationLongitude: Double = 116.404
@@ -136,6 +156,10 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
     var isDebugPanelVisible by mutableStateOf(false)
         private set
+
+    // 5次点击切换调试面板
+    private var debugPanelClickCount = 0
+    private var lastDebugPanelClickTime = 0L
 
     private var addressTabClickCount = 0
     private var lastAddressTabClickTime = 0L
@@ -175,6 +199,27 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
     fun getDebugText(): String {
         return debugMessages.joinToString("\n")
+    }
+
+    // 5次点击切换调试面板
+    fun handleDebugPanelToggle() {
+        val currentTime = System.currentTimeMillis()
+
+        // 如果距离上次点击超过3秒，重置计数
+        if (currentTime - lastDebugPanelClickTime > 3000) {
+            debugPanelClickCount = 0
+        }
+
+        debugPanelClickCount++
+        lastDebugPanelClickTime = currentTime
+
+        if (debugPanelClickCount >= 5) {
+            isDebugPanelVisible = !isDebugPanelVisible
+            debugPanelClickCount = 0
+            addDebugMessage("🔧 调试面板${if (isDebugPanelVisible) "显示" else "隐藏"}")
+        } else {
+            addDebugMessage("🔢 调试面板切换: ${debugPanelClickCount}/5")
+        }
     }
 
     // 检查和重新初始化SDK
@@ -233,6 +278,211 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
     fun onCoordinateInputChange(input: String) {
         coordinateInput = input
+
+        // 实时更新地图位置
+        if (input.isNotBlank()) {
+            try {
+                val parts = input.split(',', '，').map { it.trim() }
+                if (parts.size == 2) {
+                    val targetLng = parts[0].toDoubleOrNull()
+                    val targetLat = parts[1].toDoubleOrNull()
+
+                    if (targetLat != null && targetLng != null) {
+                        // 验证坐标范围
+                        if (targetLat >= -90 && targetLat <= 90 && targetLng >= -180 && targetLng <= 180) {
+                            // 更新地图位置（假设输入的是BD09坐标）
+                            currentLatitude = targetLat
+                            currentLongitude = targetLng
+                            addDebugMessage("🗺️ 地图位置实时更新: BD09($targetLng, $targetLat)")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // 忽略解析错误，用户可能还在输入
+            }
+        }
+    }
+
+    fun confirmCoordinateInput() {
+        if (coordinateInput.isNotBlank()) {
+            try {
+                val parts = coordinateInput.split(',', '，').map { it.trim() }
+                if (parts.size == 2) {
+                    val targetLng = parts[0].toDoubleOrNull()
+                    val targetLat = parts[1].toDoubleOrNull()
+
+                    if (targetLat != null && targetLng != null) {
+                        // 验证坐标范围
+                        if (targetLat >= -90 && targetLat <= 90 && targetLng >= -180 && targetLng <= 180) {
+                            // 更新地图位置并居中显示
+                            currentLatitude = targetLat
+                            currentLongitude = targetLng
+                            addDebugMessage("🎯 确认坐标输入: BD09($targetLng, $targetLat)")
+                            addDebugMessage("🗺️ 地图已居中到指定位置")
+
+                            // 显示确认提示
+                            statusMessage = "坐标已确认：($targetLng, $targetLat)"
+                        } else {
+                            statusMessage = "坐标超出有效范围"
+                            addDebugMessage("❌ 坐标超出范围: 纬度=$targetLat, 经度=$targetLng")
+                        }
+                    } else {
+                        statusMessage = "坐标格式错误，请输入数字"
+                        addDebugMessage("❌ 坐标解析失败: 无法转换为数字")
+                    }
+                } else {
+                    statusMessage = "坐标格式不正确，请使用 '经度,纬度' 格式"
+                    addDebugMessage("❌ 坐标格式错误: 需要2个部分，实际${parts.size}个")
+                }
+            } catch (e: Exception) {
+                statusMessage = "坐标解析失败: ${e.message}"
+                addDebugMessage("❌ 坐标解析异常: ${e.message}")
+            }
+        }
+    }
+
+    // 收藏位置管理
+    fun addToFavorites() {
+        val currentLocation = when (inputMode) {
+            InputMode.ADDRESS -> {
+                if (addressQuery.isNotBlank() && selectedSuggestion?.location != null) {
+                    FavoriteLocation(
+                        name = addressQuery,
+                        address = addressQuery,
+                        latitude = selectedSuggestion!!.location!!.latitude,
+                        longitude = selectedSuggestion!!.location!!.longitude
+                    )
+                } else null
+            }
+            InputMode.COORDINATE -> {
+                if (coordinateInput.isNotBlank()) {
+                    try {
+                        val parts = coordinateInput.split(',', '，').map { it.trim() }
+                        if (parts.size == 2) {
+                            val lng = parts[0].toDouble()
+                            val lat = parts[1].toDouble()
+                            FavoriteLocation(
+                                name = "坐标位置 ($lng, $lat)",
+                                address = coordinateInput,
+                                latitude = lat,
+                                longitude = lng
+                            )
+                        } else null
+                    } catch (e: Exception) {
+                        null
+                    }
+                } else null
+            }
+        }
+
+        currentLocation?.let { location ->
+            // 检查是否已存在相同位置
+            val exists = favoriteLocations.any {
+                kotlin.math.abs(it.latitude - location.latitude) < 0.0001 &&
+                kotlin.math.abs(it.longitude - location.longitude) < 0.0001
+            }
+
+            if (!exists) {
+                favoriteLocations = favoriteLocations + location
+                saveFavoriteLocations() // 持久化保存
+                addDebugMessage("⭐ 已添加到收藏: ${location.name}")
+                statusMessage = "已添加到收藏"
+            } else {
+                addDebugMessage("⚠️ 位置已存在于收藏中")
+                statusMessage = "位置已存在于收藏中"
+            }
+        }
+    }
+
+    fun removeFromFavorites(location: FavoriteLocation) {
+        favoriteLocations = favoriteLocations.filter { it.id != location.id }
+        saveFavoriteLocations() // 持久化保存
+        addDebugMessage("🗑️ 已从收藏中移除: ${location.name}")
+    }
+
+    fun loadFavoriteLocation(location: FavoriteLocation) {
+        // 设置输入模式和内容
+        if (location.address.contains(",") || location.address.contains("，")) {
+            // 坐标格式
+            setInputMode(InputMode.COORDINATE)
+            coordinateInput = location.address
+        } else {
+            // 地址格式
+            setInputMode(InputMode.ADDRESS)
+            addressQuery = location.address
+            selectedSuggestion = SuggestionItem(
+                name = location.name,
+                address = location.address,
+                location = LatLng(location.latitude, location.longitude)
+            )
+        }
+
+        // 更新地图位置
+        currentLatitude = location.latitude
+        currentLongitude = location.longitude
+
+        addDebugMessage("📍 已加载收藏位置: ${location.name}")
+        statusMessage = "已加载收藏位置"
+
+        // 关闭收藏对话框
+        showFavoritesDialog = false
+    }
+
+    fun toggleFavoritesDialog() {
+        showFavoritesDialog = !showFavoritesDialog
+    }
+
+    // 收藏位置持久化
+    private fun saveFavoriteLocations() {
+        try {
+            val sharedPrefs = application.getSharedPreferences("favorite_locations", Context.MODE_PRIVATE)
+            val editor = sharedPrefs.edit()
+
+            val jsonArray = favoriteLocations.map { location ->
+                """{"id":"${location.id}","name":"${location.name}","address":"${location.address}","latitude":${location.latitude},"longitude":${location.longitude},"timestamp":${location.timestamp}}"""
+            }.joinToString(",", "[", "]")
+
+            editor.putString("locations", jsonArray)
+            editor.apply()
+
+            addDebugMessage("💾 收藏位置已保存: ${favoriteLocations.size}个")
+        } catch (e: Exception) {
+            addDebugMessage("❌ 保存收藏位置失败: ${e.message}")
+        }
+    }
+
+    private fun loadFavoriteLocations() {
+        try {
+            val sharedPrefs = application.getSharedPreferences("favorite_locations", Context.MODE_PRIVATE)
+            val jsonString = sharedPrefs.getString("locations", "[]") ?: "[]"
+
+            if (jsonString != "[]") {
+                // 简单的JSON解析（避免引入额外依赖）
+                val locations = mutableListOf<FavoriteLocation>()
+                val items = jsonString.removeSurrounding("[", "]").split("},")
+
+                items.forEach { item ->
+                    val cleanItem = if (item.endsWith("}")) item else "$item}"
+                    try {
+                        val id = cleanItem.substringAfter("\"id\":\"").substringBefore("\"")
+                        val name = cleanItem.substringAfter("\"name\":\"").substringBefore("\"")
+                        val address = cleanItem.substringAfter("\"address\":\"").substringBefore("\"")
+                        val latitude = cleanItem.substringAfter("\"latitude\":").substringBefore(",").toDouble()
+                        val longitude = cleanItem.substringAfter("\"longitude\":").substringBefore(",").toDouble()
+                        val timestamp = cleanItem.substringAfter("\"timestamp\":").substringBefore("}").toLong()
+
+                        locations.add(FavoriteLocation(id, name, address, latitude, longitude, timestamp))
+                    } catch (e: Exception) {
+                        addDebugMessage("⚠️ 解析收藏位置失败: ${e.message}")
+                    }
+                }
+
+                favoriteLocations = locations
+                addDebugMessage("📂 已加载收藏位置: ${favoriteLocations.size}个")
+            }
+        } catch (e: Exception) {
+            addDebugMessage("❌ 加载收藏位置失败: ${e.message}")
+        }
     }
 
     fun selectSuggestion(suggestion: SuggestionItem) {
@@ -268,11 +518,15 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         addDebugMessage("⚠️ 如遇PERMISSION_UNFINISHED错误，请检查百度开发者平台SHA1配置")
         addDebugMessage("📋 包名: com.example.locationsimulator")
         initBaiduSDK()
-        // 应用启动时自动获取当前位置
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            addDebugMessage("🌍 自动获取当前位置...")
-            getCurrentLocation(application)
-        }, 2000) // 延迟2秒确保SDK初始化完成
+        // 移除自动获取当前位置，让用户手动输入
+        // android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+        //     addDebugMessage("🌍 自动获取当前位置...")
+        //     getCurrentLocation(application)
+        // }, 2000) // 延迟2秒确保SDK初始化完成
+        addDebugMessage("💡 请手动输入地址或坐标开始使用")
+
+        // 加载收藏位置
+        loadFavoriteLocations()
     }
 
     private fun initBaiduSDK() {
@@ -916,34 +1170,46 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 addDebugMessage("📍 模拟坐标: WGS84($lngWgs, $latWgs)")
                 Log.d("LocationViewModel", "Starting comprehensive mock location: lng=$lngWgs, lat=$latWgs")
 
-                try {
-                    MockLocationManager.start(context, latWgs, lngWgs)
+                // 使用统一模拟定位管理器
+                val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs)
 
-                    // 保存模拟定位的WGS84坐标
-                    simulationLatitude = latWgs
-                    simulationLongitude = lngWgs
+                when (result) {
+                    is MockLocationResult.Success -> {
+                        // 保存模拟定位的WGS84坐标
+                        simulationLatitude = latWgs
+                        simulationLongitude = lngWgs
 
-                    // 保持地图显示坐标为BD09坐标系（用户输入的坐标）
-                    currentLatitude = targetLat
-                    currentLongitude = targetLng
+                        // 保持地图显示坐标为BD09坐标系（用户输入的坐标）
+                        currentLatitude = targetLat
+                        currentLongitude = targetLng
 
-                    addDebugMessage("✅ 系统级模拟定位启动成功")
-                    addDebugMessage("📱 已覆盖所有定位提供者 (GPS/网络/被动)")
-                    addDebugMessage("🎯 地图坐标保持: BD09($targetLng, $targetLat)")
-                    addDebugMessage("🎯 模拟坐标设置: WGS84($lngWgs, $latWgs)")
+                        addDebugMessage("✅ 模拟定位启动成功 - 策略: ${result.strategy.displayName}")
+                        addDebugMessage("📱 已覆盖所有定位提供者 (GPS/网络/被动)")
+                        addDebugMessage("🎯 地图坐标保持: BD09($targetLng, $targetLat)")
+                        addDebugMessage("🎯 模拟坐标设置: WGS84($lngWgs, $latWgs)")
 
-                    isSimulating = true
-                    statusMessage = "模拟定位成功！坐标：WGS84($lngWgs, $latWgs)"
+                        isSimulating = true
+                        statusMessage = "模拟定位成功！策略：${result.strategy.displayName}，坐标：WGS84($lngWgs, $latWgs)"
 
-                    // 显示Toast提示
-                    android.widget.Toast.makeText(
-                        context,
-                        "模拟定位成功！坐标：$coordinateInput",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                } catch (e: Exception) {
-                    addDebugMessage("❌ 模拟定位启动失败: ${e.message}")
-                    statusMessage = "模拟失败: ${e.message}"
+                        // 显示Toast提示
+                        android.widget.Toast.makeText(
+                            context,
+                            "模拟定位成功！策略：${result.strategy.displayName}",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+
+                    is MockLocationResult.Failure -> {
+                        addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
+                        addDebugMessage("📋 设置说明:")
+                        result.instructions.forEach { instruction ->
+                            addDebugMessage("  • ${instruction.title}: ${instruction.description}")
+                        }
+                        statusMessage = "模拟失败: ${result.status.message}"
+
+                        // 显示设置说明
+                        showSetupInstructions(context, result.instructions)
+                    }
                 }
 
             } catch (e: Exception) {
@@ -959,12 +1225,14 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
             UnifiedMockLocationManager.stop(context)
             isSimulating = false
             statusMessage = null
-            addressQuery = ""
-            coordinateInput = ""
+            // 保留地址和坐标输入，不清空
+            // addressQuery = ""
+            // coordinateInput = ""
             selectedSuggestion = null
             suggestions = emptyList()
             addDebugMessage("✅ 所有模拟定位提供者已停止")
             addDebugMessage("🔄 系统定位已恢复正常")
+            addDebugMessage("💾 地址输入已保留，便于重新启动")
         } catch (e: Exception) {
             addDebugMessage("❌ 停止模拟定位失败: ${e.message}")
         }
@@ -1102,12 +1370,13 @@ fun MainScreen(viewModel: MainViewModel) {
             InputControls(viewModel)
             Spacer(Modifier.height(12.dp))
 
-            // 当前位置显示
+            // 当前位置显示 - 5次点击切换调试面板
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
                     .background(Constants.Colors.Surface)
+                    .clickable { viewModel.handleDebugPanelToggle() }
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1133,6 +1402,9 @@ fun MainScreen(viewModel: MainViewModel) {
             // 底部按钮
             ActionButton(viewModel, onStartClick = { viewModel.toggleSimulation(context) })
         }
+
+        // 收藏对话框
+        FavoritesDialog(viewModel)
     }
 }
 
@@ -1354,7 +1626,28 @@ fun StatusCheck(viewModel: MainViewModel) {
                 fontSize = 12.sp
             )
             Text(
-                text = if (isDeveloperModeEnabled) "已开启" else "未开启",
+                text = if (isDeveloperModeEnabled) {
+                    val isMockLocationApp = try {
+                        val context = LocalContext.current
+                        val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+                        val result = appOpsManager.checkOp(
+                            AppOpsManager.OPSTR_MOCK_LOCATION,
+                            android.os.Process.myUid(),
+                            context.packageName
+                        )
+                        result == AppOpsManager.MODE_ALLOWED
+                    } catch (e: Exception) {
+                        false
+                    }
+
+                    if (isMockLocationApp) {
+                        "已开启 (已选择为模拟定位应用)"
+                    } else {
+                        "已开启 (未选择为模拟定位应用)"
+                    }
+                } else {
+                    "未开启"
+                },
                 color = if (isDeveloperModeEnabled) Color(0xFF4CAF50) else Color(0xFFF44336),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
@@ -1446,17 +1739,57 @@ fun SimulatingStatus(address: String) {
 fun InputControls(viewModel: MainViewModel) {
     val isAddressMode = viewModel.inputMode == InputMode.ADDRESS
     Column {
-        TabRow(
-            selectedTabIndex = viewModel.inputMode.ordinal,
-            containerColor = Color.White.copy(alpha = 0.1f),
-            contentColor = Color.White,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp))
+        // 收藏和输入模式切换行
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Tab(selected = isAddressMode, onClick = {
-                viewModel.setInputMode(InputMode.ADDRESS)
-                viewModel.onAddressTabClick()
-            }, text = { Text("地址输入") })
-            Tab(selected = !isAddressMode, onClick = { viewModel.setInputMode(InputMode.COORDINATE) }, text = { Text("坐标输入") })
+            TabRow(
+                selectedTabIndex = viewModel.inputMode.ordinal,
+                containerColor = Color.White.copy(alpha = 0.1f),
+                contentColor = Color.White,
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+            ) {
+                Tab(selected = isAddressMode, onClick = {
+                    viewModel.setInputMode(InputMode.ADDRESS)
+                    viewModel.onAddressTabClick()
+                }, text = { Text("地址输入") })
+                Tab(selected = !isAddressMode, onClick = { viewModel.setInputMode(InputMode.COORDINATE) }, text = { Text("坐标输入") })
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            // 收藏按钮
+            Row {
+                // 添加到收藏按钮
+                IconButton(
+                    onClick = { viewModel.addToFavorites() },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FavoriteBorder,
+                        contentDescription = "添加收藏",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                // 查看收藏按钮
+                IconButton(
+                    onClick = { viewModel.toggleFavoritesDialog() },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "查看收藏",
+                        tint = Color(0xFFFFD700),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
         }
         Spacer(Modifier.height(16.dp))
 
@@ -1464,23 +1797,47 @@ fun InputControls(viewModel: MainViewModel) {
             AddressInputWithSuggestions(viewModel)
         } else {
             Column {
-                OutlinedTextField(
-                    value = viewModel.coordinateInput,
-                    onValueChange = { viewModel.onCoordinateInputChange(it) },
-                    label = { Text("经度,纬度") },
-                    placeholder = { Text("例如: 116.404,39.915") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    colors = textFieldColors()
-                )
-
-                Spacer(Modifier.height(8.dp))
-
-                // 坐标获取链接按钮
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    OutlinedTextField(
+                        value = viewModel.coordinateInput,
+                        onValueChange = { viewModel.onCoordinateInputChange(it) },
+                        label = { Text("经度,纬度") },
+                        placeholder = { Text("116.404,39.915") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = textFieldColors()
+                    )
+
+                    Spacer(Modifier.width(8.dp))
+
+                    // 确认按钮
+                    Button(
+                        onClick = { viewModel.confirmCoordinateInput() },
+                        modifier = Modifier.height(56.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Constants.Colors.Primary
+                        ),
+                        enabled = viewModel.coordinateInput.isNotBlank()
+                    ) {
+                        Text("确认", color = Color.White)
+                    }
+                }
+
+                // 坐标获取链接按钮 - 紧凑布局
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "需要坐标？",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp
+                    )
+
                     TextButton(
                         onClick = {
                             // 在浏览器中打开百度坐标拾取器
@@ -1491,9 +1848,16 @@ fun InputControls(viewModel: MainViewModel) {
                             }
                             context.startActivity(intent)
                         },
-                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF007AFF))
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF007AFF)),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text("📍 获取坐标", fontSize = 14.sp)
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = "获取坐标",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("获取坐标", fontSize = 12.sp)
                     }
                 }
             }
@@ -1732,6 +2096,138 @@ private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = Color.White,
     unfocusedTextColor = Color.White
 )
+
+@Composable
+fun FavoritesDialog(viewModel: MainViewModel) {
+    if (viewModel.showFavoritesDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.toggleFavoritesDialog() },
+            title = {
+                Text(
+                    text = "收藏位置",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                ) {
+                    if (viewModel.favoriteLocations.isEmpty()) {
+                        item {
+                            Text(
+                                text = "暂无收藏位置",
+                                color = Color.Gray,
+                                modifier = Modifier.padding(16.dp),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        items(viewModel.favoriteLocations) { location ->
+                            FavoriteLocationItem(
+                                location = location,
+                                onLoad = { viewModel.loadFavoriteLocation(location) },
+                                onDelete = { viewModel.removeFromFavorites(location) },
+                                onQuickStart = {
+                                    viewModel.loadFavoriteLocation(location)
+                                    // 快速启动模拟定位
+                                    val context = LocalContext.current
+                                    viewModel.toggleSimulation(context)
+                                }
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.toggleFavoritesDialog() }
+                ) {
+                    Text("关闭", color = Constants.Colors.Primary)
+                }
+            },
+            containerColor = Color(0xFF2D2D2D),
+            textContentColor = Color.White
+        )
+    }
+}
+
+@Composable
+fun FavoriteLocationItem(
+    location: FavoriteLocation,
+    onLoad: () -> Unit,
+    onDelete: () -> Unit,
+    onQuickStart: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onLoad() },
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.1f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = location.name,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = location.address,
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "${location.longitude}, ${location.latitude}",
+                    color = Color.Gray,
+                    fontSize = 10.sp
+                )
+            }
+
+            Row {
+                // 快速启动按钮
+                IconButton(
+                    onClick = onQuickStart,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "快速启动",
+                        tint = Color.Green,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                // 删除按钮
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "删除",
+                        tint = Color.Red,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Preview(showBackground = true)
 @Composable

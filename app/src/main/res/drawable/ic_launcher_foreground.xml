@@ -4,11 +4,27 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- 简单的手绘圆圈轮廓 -->
     <group
-        android:translateX="27"
-        android:translateY="27">
+        android:translateX="54"
+        android:translateY="54">
+        <!-- 外圆圈 -->
         <path
-            android:fillColor="#ECF0F1"
-            android:pathData="M24,0C11.85,0,2,9.85,2,22c0,14.67,19.33,43,22,48c2.67-5,22-33.33,22-48C46,9.85,36.15,0,24,0zM24,32c-5.52,0-10-4.48-10-10s4.48-10,10-10,10,4.48,10,10S29.52,32,24,32z" />
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="4"
+            android:strokeLineCap="round"
+            android:pathData="M-30,0A30,30 0 1,1 30,0A30,30 0 1,1 -30,0" />
+        <!-- 内圆点 -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M-8,0A8,8 0 1,1 8,0A8,8 0 1,1 -8,0" />
+        <!-- 定位十字线 -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"
+            android:pathData="M-20,0L-12,0M12,0L20,0M0,-20L0,-12M0,12L0,20" />
     </group>
 </vector>
