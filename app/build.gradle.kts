@@ -64,11 +64,8 @@ android {
     lint {
         abortOnError = false
     }
-    sourceSets {
-        getByName("main") {
-            aidl.srcDir("src/main/aidl")
-        }
-    }
+
+
 }
 
 dependencies {

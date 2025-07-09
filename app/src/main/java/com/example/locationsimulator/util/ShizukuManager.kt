@@ -2,20 +2,24 @@ package com.example.locationsimulator.util
 
 import android.content.Context
 import android.content.pm.PackageManager
-import android.location.ILocationManager
 import android.location.Location
-import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuBinderWrapper
 import rikka.shizuku.SystemServiceHelper
+import java.lang.reflect.Method
 
 object ShizukuManager {
 
     private const val TAG = "ShizukuManager"
 
-    private var locationService: ILocationManager? = null
+    private var locationService: Any? = null
+    private var locationServiceClass: Class<*>? = null
+    private var setTestProviderLocationMethod: Method? = null
+    private var setTestProviderEnabledMethod: Method? = null
+    private var addTestProviderMethod: Method? = null
+    private var removeTestProviderMethod: Method? = null
 
     private val isShizukuAvailable: Boolean
         get() = try {
@@ -38,7 +42,7 @@ object ShizukuManager {
         return true
     }
 
-    private fun getLocationService(): ILocationManager? {
+    private fun getLocationService(): Any? {
         if (locationService != null) {
             return locationService
         }
@@ -50,7 +54,44 @@ object ShizukuManager {
 
         try {
             val binder = ShizukuBinderWrapper(SystemServiceHelper.getSystemService(Context.LOCATION_SERVICE))
-            locationService = ILocationManager.Stub.asInterface(binder)
+
+            // 使用反射获取 ILocationManager.Stub.asInterface 方法
+            val iLocationManagerClass = Class.forName("android.location.ILocationManager")
+            val stubClass = Class.forName("android.location.ILocationManager\$Stub")
+            val asInterfaceMethod = stubClass.getMethod("asInterface", IBinder::class.java)
+
+            locationService = asInterfaceMethod.invoke(null, binder)
+            locationServiceClass = iLocationManagerClass
+
+            // 缓存反射方法
+            setTestProviderLocationMethod = locationServiceClass?.getMethod(
+                "setTestProviderLocation",
+                String::class.java,
+                Location::class.java
+            )
+            setTestProviderEnabledMethod = locationServiceClass?.getMethod(
+                "setTestProviderEnabled",
+                String::class.java,
+                Boolean::class.javaPrimitiveType
+            )
+            addTestProviderMethod = locationServiceClass?.getMethod(
+                "addTestProvider",
+                String::class.java,
+                Boolean::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType
+            )
+            removeTestProviderMethod = locationServiceClass?.getMethod(
+                "removeTestProvider",
+                String::class.java
+            )
+
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get LocationManagerService.", e)
         }
@@ -62,7 +103,7 @@ object ShizukuManager {
         val service = getLocationService() ?: return
 
         try {
-            service.setTestProviderLocation(location.provider, location)
+            setTestProviderLocationMethod?.invoke(service, location.provider, location)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to set mock location.", e)
         }
@@ -72,7 +113,7 @@ object ShizukuManager {
         val service = getLocationService() ?: return
 
         try {
-            service.setTestProviderEnabled(provider, enabled)
+            setTestProviderEnabledMethod?.invoke(service, provider, enabled)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to set provider enabled state.", e)
         }
@@ -82,7 +123,8 @@ object ShizukuManager {
         val service = getLocationService() ?: return
 
         try {
-            service.addTestProvider(
+            addTestProviderMethod?.invoke(
+                service,
                 provider,
                 false,
                 false,
@@ -103,7 +145,7 @@ object ShizukuManager {
         val service = getLocationService() ?: return
 
         try {
-            service.removeTestProvider(provider)
+            removeTestProviderMethod?.invoke(service, provider)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to remove test provider.", e)
         }
