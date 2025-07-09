@@ -12,17 +12,40 @@ object Constants {
     const val APP_NAME_DEBUG = "Location Simulator Debug"
     const val PACKAGE_NAME = "com.example.locationsimulator"
     
-    // 颜色主题
+    // 颜色主题 - 按照HTML原型设计
     object Colors {
-        val Background = Color(0xFF1F2937)
-        val Surface = Color(0xFF374151)
-        val Primary = Color(0xFF3B82F6)
-        val Secondary = Color(0xFF6B7280)
-        val Success = Color(0xFF10B981)
-        val Warning = Color(0xFFFB8C00)
-        val Error = Color(0xFFE53935)
+        // 背景渐变色（使用中间色作为主背景）
+        val Background = Color(0xFF1e40af)
+
+        // 半透明白色背景 rgba(255,255,255,0.1)
+        val Surface = Color(0x1AFFFFFF)
+        val SurfaceVariant = Color(0x33FFFFFF) // rgba(255,255,255,0.2)
+
+        // 主要按钮颜色 #2196F3
+        val Primary = Color(0xFF2196F3)
+        val PrimaryHover = Color(0xFF1976D2)
+
+        // 错误/停止按钮颜色 #F44336
+        val Error = Color(0xFFF44336)
+        val ErrorHover = Color(0xFFD32F2F)
+
+        // 成功状态颜色 #4CAF50
+        val Success = Color(0xFF4CAF50)
+
+        // 收藏按钮颜色 #E91E63
+        val Favorite = Color(0xFFE91E63)
+
+        // 警告颜色 #FFC107
+        val Warning = Color(0xFFFFC107)
+
+        // 文本颜色
         val OnSurface = Color.White
-        val OnSurfaceVariant = Color(0xFFD1D5DB)
+        val OnSurfaceVariant = Color(0xCCFFFFFF) // rgba(255,255,255,0.8)
+        val OnSurfaceDisabled = Color(0x80FFFFFF) // rgba(255,255,255,0.5)
+
+        // 禁用状态
+        val Disabled = Color(0x33FFFFFF) // rgba(255,255,255,0.2)
+        val OnDisabled = Color(0x80FFFFFF) // rgba(255,255,255,0.5)
     }
     
     // 默认坐标（北京天安门）
@@ -52,13 +75,26 @@ object Constants {
         const val DOCUMENTATION_URL = "https://lbsyun.baidu.com/faq/api?title=androidsdk/guide/create-project/ak"
     }
     
-    // UI尺寸
+    // UI尺寸 - 按照HTML原型设计
     object Dimensions {
         const val BUTTON_HEIGHT = 56
-        const val CORNER_RADIUS = 16
+
+        // 圆角半径
+        const val CORNER_RADIUS_LARGE = 16 // 主要容器
+        const val CORNER_RADIUS_MEDIUM = 12 // 卡片容器
+        const val CORNER_RADIUS_SMALL = 8 // 按钮和输入框
+        const val CORNER_RADIUS_TINY = 6 // 小按钮
+
+        // 间距
+        const val PADDING_TINY = 4
         const val PADDING_SMALL = 8
-        const val PADDING_MEDIUM = 16
-        const val PADDING_LARGE = 24
+        const val PADDING_MEDIUM = 12
+        const val PADDING_LARGE = 16
+        const val PADDING_XLARGE = 24
+
+        // 按钮尺寸
+        const val ICON_BUTTON_SIZE = 40
+        const val SMALL_BUTTON_HEIGHT = 32
     }
     
     // 日志标签

@@ -434,6 +434,43 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         showFavoritesDialog = !showFavoritesDialog
     }
 
+    // 检查当前位置是否已收藏
+    fun isCurrentLocationFavorited(): Boolean {
+        val currentName = if (inputMode == InputMode.ADDRESS) {
+            addressQuery.ifEmpty { "${currentSearchCity}市" }
+        } else {
+            coordinateInput.ifEmpty { "${currentLongitude},${currentLatitude}" }
+        }
+
+        return favoriteLocations.any { it.name == currentName || it.address == currentName }
+    }
+
+    // 切换当前位置的收藏状态
+    fun toggleCurrentLocationFavorite() {
+        val currentName = if (inputMode == InputMode.ADDRESS) {
+            addressQuery.ifEmpty { "${currentSearchCity}市" }
+        } else {
+            coordinateInput.ifEmpty { "${currentLongitude},${currentLatitude}" }
+        }
+
+        val currentAddress = if (inputMode == InputMode.ADDRESS) {
+            addressQuery.ifEmpty { "${currentSearchCity}市" }
+        } else {
+            coordinateInput
+        }
+
+        if (isCurrentLocationFavorited()) {
+            // 移除收藏
+            val toRemove = favoriteLocations.find { it.name == currentName || it.address == currentName }
+            toRemove?.let { removeFromFavorites(it) }
+        } else {
+            // 添加收藏
+            if (currentName.isNotEmpty()) {
+                addToFavorites(currentName, currentAddress, currentLatitude, currentLongitude)
+            }
+        }
+    }
+
     // 收藏位置持久化
     private fun saveFavoriteLocations() {
         try {
@@ -505,6 +542,30 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     fun setInputMode(mode: InputMode) {
         _inputMode = mode
         statusMessage = null
+    }
+
+    // 解析并更新坐标 - 实时地图更新
+    fun parseAndUpdateCoordinates(input: String) {
+        if (input.isBlank()) return
+
+        try {
+            val parts = input.split(",")
+            if (parts.size == 2) {
+                val longitude = parts[0].trim().toDoubleOrNull()
+                val latitude = parts[1].trim().toDoubleOrNull()
+
+                if (longitude != null && latitude != null) {
+                    // 假设输入的是WGS84坐标，转换为BD09用于地图显示
+                    val bd09Result = CoordinateConverter.wgs84ToBd09(latitude, longitude)
+                    currentLatitude = bd09Result.latitude
+                    currentLongitude = bd09Result.longitude
+
+                    addDebugMessage("🗺️ 坐标已更新: WGS84($longitude, $latitude) -> BD09(${bd09Result.longitude}, ${bd09Result.latitude})")
+                }
+            }
+        } catch (e: Exception) {
+            addDebugMessage("⚠️ 坐标解析失败: ${e.message}")
+        }
     }
 
     // 百度SDK实例
@@ -1358,51 +1419,40 @@ fun MainScreen(viewModel: MainViewModel) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp)
+                .padding(Constants.Dimensions.PADDING_XLARGE.dp)
         ) {
+
+            // 应用标题
+            Text(
+                text = "定红",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            )
 
             // 调试信息面板
             DebugPanel(viewModel)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Constants.Dimensions.PADDING_LARGE.dp))
 
-            StatusCheck(viewModel)
-            Spacer(Modifier.height(12.dp))
+            // 优化后的状态栏
+            OptimizedStatusBar(viewModel)
+            Spacer(Modifier.height(Constants.Dimensions.PADDING_LARGE.dp))
 
-            // 输入控件（不包含按钮）
-            InputControls(viewModel)
-            Spacer(Modifier.height(12.dp))
+            // 重新设计的输入控件区域
+            RedesignedInputSection(viewModel)
+            Spacer(Modifier.height(Constants.Dimensions.PADDING_LARGE.dp))
 
             // 当前位置显示 - 5次点击切换调试面板
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Constants.Colors.Surface)
-                    .clickable { viewModel.handleDebugPanelToggle() }
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "当前位置: ",
-                    color = Color.White,
-                    fontSize = 14.sp
-                )
-                Text(
-                    text = if (viewModel.addressQuery.isNotEmpty()) viewModel.addressQuery else "${viewModel.currentSearchCity}市",
-                    color = Color.Yellow,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
+            CurrentLocationDisplay(viewModel)
+            // 地图区域
             BaiduMapView(modifier = Modifier.weight(1f), isSimulating = false, viewModel = viewModel)
 
-            Spacer(Modifier.height(16.dp))
-
-            // 底部按钮
-            ActionButton(viewModel, onStartClick = { viewModel.toggleSimulation(context) })
+            // 修复后的主操作按钮
+            MainActionButton(viewModel, context)
         }
 
         // 收藏对话框
@@ -1563,6 +1613,434 @@ private fun checkMockLocationAppStatus(context: Context): Boolean {
         result == AppOpsManager.MODE_ALLOWED
     } catch (e: Exception) {
         false
+    }
+}
+
+// 优化后的状态栏 - 网格布局
+@Composable
+fun OptimizedStatusBar(viewModel: MainViewModel) {
+    val context = LocalContext.current
+
+    // 使用 remember 和 mutableStateOf 来实现状态更新
+    var isDeveloperModeEnabled by remember { mutableStateOf(false) }
+    var isShizukuAvailable by remember { mutableStateOf(false) }
+
+    // 初始状态检查
+    LaunchedEffect(Unit) {
+        isDeveloperModeEnabled = try {
+            Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
+        } catch (e: Exception) {
+            false
+        }
+        isShizukuAvailable = try { Shizuku.pingBinder() } catch (e: Exception) { false }
+
+        // 定期更新状态
+        var lastDeveloperMode = isDeveloperModeEnabled
+        var lastShizukuAvailable = isShizukuAvailable
+
+        while (true) {
+            delay(3000)
+
+            val currentDeveloperMode = try {
+                Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) != 0
+            } catch (e: Exception) {
+                false
+            }
+            val currentShizukuAvailable = try { Shizuku.pingBinder() } catch (e: Exception) { false }
+
+            // 只在状态变化时输出调试信息
+            if (currentDeveloperMode != lastDeveloperMode) {
+                viewModel.addDebugMessage("🔄 开发者模式状态变化: ${if (currentDeveloperMode) "已开启" else "未开启"}")
+                lastDeveloperMode = currentDeveloperMode
+                isDeveloperModeEnabled = currentDeveloperMode
+            }
+
+            if (currentShizukuAvailable != lastShizukuAvailable) {
+                viewModel.addDebugMessage("🔄 Shizuku状态变化: ${if (currentShizukuAvailable) "可用" else "不可用"}")
+                lastShizukuAvailable = currentShizukuAvailable
+                isShizukuAvailable = currentShizukuAvailable
+            }
+        }
+    }
+
+    // 网格布局状态栏
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Constants.Colors.Surface),
+        shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_MEDIUM.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Constants.Dimensions.PADDING_MEDIUM.dp),
+            horizontalArrangement = Arrangement.spacedBy(Constants.Dimensions.PADDING_SMALL.dp)
+        ) {
+            // 开发者模式状态
+            StatusItem(
+                label = "开发者模式",
+                value = if (isDeveloperModeEnabled) {
+                    val isMockLocationApp = remember(isDeveloperModeEnabled) {
+                        if (isDeveloperModeEnabled) {
+                            checkMockLocationAppStatus(context)
+                        } else {
+                            false
+                        }
+                    }
+                    if (isMockLocationApp) "已开启 (已选择)" else "已开启 (未选择)"
+                } else "未开启",
+                isPositive = isDeveloperModeEnabled,
+                modifier = Modifier.weight(1f)
+            )
+
+            // Shizuku状态
+            val shizukuStatus = remember { UnifiedMockLocationManager.getShizukuStatus() }
+            StatusItem(
+                label = "Shizuku",
+                value = when (shizukuStatus) {
+                    ShizukuStatus.READY -> "已就绪"
+                    ShizukuStatus.NEED_PERMISSION -> "需授权"
+                    ShizukuStatus.NOT_RUNNING -> "未运行"
+                    ShizukuStatus.NOT_INSTALLED -> "未安装"
+                    ShizukuStatus.ERROR -> "错误"
+                },
+                isPositive = shizukuStatus == ShizukuStatus.READY,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+fun StatusItem(
+    label: String,
+    value: String,
+    isPositive: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Constants.Colors.Surface),
+        shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(Constants.Dimensions.PADDING_SMALL.dp)
+        ) {
+            Text(
+                text = label,
+                color = Constants.Colors.OnSurfaceVariant,
+                fontSize = 10.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = value,
+                color = if (isPositive) Constants.Colors.Success else Constants.Colors.Error,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+// 重新设计的输入控件区域
+@Composable
+fun RedesignedInputSection(viewModel: MainViewModel) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Constants.Colors.Surface),
+        shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_MEDIUM.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(Constants.Dimensions.PADDING_LARGE.dp)
+        ) {
+            // 选项卡和收藏按钮的协调布局
+            TabAndFavoritesRow(viewModel)
+
+            Spacer(modifier = Modifier.height(Constants.Dimensions.PADDING_LARGE.dp))
+
+            // 输入字段
+            when (viewModel.inputMode) {
+                InputMode.ADDRESS -> AddressInputField(viewModel)
+                InputMode.COORDINATE -> CoordinateInputField(viewModel)
+            }
+        }
+    }
+}
+
+// 选项卡和收藏按钮的协调布局
+@Composable
+fun TabAndFavoritesRow(viewModel: MainViewModel) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Constants.Dimensions.PADDING_MEDIUM.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 选项卡容器
+        Card(
+            modifier = Modifier.weight(1f),
+            colors = CardDefaults.cardColors(containerColor = Constants.Colors.Surface),
+            shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                TabButton(
+                    text = "地址输入",
+                    isSelected = viewModel.inputMode == InputMode.ADDRESS,
+                    onClick = { viewModel.setInputMode(InputMode.ADDRESS) },
+                    modifier = Modifier.weight(1f)
+                )
+                TabButton(
+                    text = "坐标输入",
+                    isSelected = viewModel.inputMode == InputMode.COORDINATE,
+                    onClick = { viewModel.setInputMode(InputMode.COORDINATE) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        // 收藏按钮组
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(Constants.Dimensions.PADDING_SMALL.dp)
+        ) {
+            // 添加收藏按钮 - 带视觉反馈
+            FavoriteButton(
+                isFavorited = viewModel.isCurrentLocationFavorited(),
+                onClick = { viewModel.toggleCurrentLocationFavorite() }
+            )
+
+            // 查看收藏按钮
+            IconButton(
+                onClick = { viewModel.toggleFavoritesDialog() },
+                modifier = Modifier.size(Constants.Dimensions.ICON_BUTTON_SIZE.dp)
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Constants.Colors.Surface),
+                    shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "★",
+                            color = Constants.Colors.Warning,
+                            fontSize = 18.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TabButton(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(Constants.Dimensions.ICON_BUTTON_SIZE.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (isSelected) Constants.Colors.SurfaceVariant else Color.Transparent,
+            contentColor = if (isSelected) Color.White else Constants.Colors.OnSurfaceVariant
+        ),
+        shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp),
+        elevation = null
+    ) {
+        Text(
+            text = text,
+            fontSize = 14.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+fun FavoriteButton(
+    isFavorited: Boolean,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(Constants.Dimensions.ICON_BUTTON_SIZE.dp)
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = if (isFavorited) Constants.Colors.Favorite else Constants.Colors.Surface
+            ),
+            shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (isFavorited) "♥" else "♡",
+                    color = if (isFavorited) Color.White else Constants.Colors.OnSurface,
+                    fontSize = 18.sp
+                )
+            }
+        }
+    }
+}
+
+// 地址输入字段
+@Composable
+fun AddressInputField(viewModel: MainViewModel) {
+    OutlinedTextField(
+        value = viewModel.addressQuery,
+        onValueChange = { viewModel.updateAddressQuery(it) },
+        placeholder = {
+            Text(
+                text = "输入地址，如：北京市朝阳区",
+                color = Constants.Colors.OnSurfaceDisabled
+            )
+        },
+        modifier = Modifier.fillMaxWidth(),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Constants.Colors.Primary,
+            unfocusedBorderColor = Color(0x33FFFFFF),
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            cursorColor = Constants.Colors.Primary,
+            focusedContainerColor = Constants.Colors.Surface,
+            unfocusedContainerColor = Constants.Colors.Surface
+        ),
+        shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp),
+        singleLine = true
+    )
+
+    // 地址建议列表
+    if (viewModel.suggestions.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(Constants.Dimensions.PADDING_SMALL.dp))
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Constants.Colors.Surface,
+                    shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp)
+                )
+                .heightIn(max = 120.dp)
+        ) {
+            items(viewModel.suggestions) { suggestion ->
+                val displayText = if (suggestion.city != null && suggestion.district != null) {
+                    "${suggestion.name} (${suggestion.city}${suggestion.district})"
+                } else {
+                    suggestion.name
+                }
+
+                Text(
+                    text = displayText,
+                    color = Color.White,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.selectSuggestion(suggestion) }
+                        .padding(Constants.Dimensions.PADDING_LARGE.dp)
+                )
+
+                if (suggestion != viewModel.suggestions.last()) {
+                    Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                }
+            }
+        }
+    }
+}
+
+// 坐标输入字段 - 移除确认按钮，保持实时更新
+@Composable
+fun CoordinateInputField(viewModel: MainViewModel) {
+    Column {
+        OutlinedTextField(
+            value = viewModel.coordinateInput,
+            onValueChange = {
+                viewModel.updateCoordinateInput(it)
+                // 实时更新地图位置
+                viewModel.parseAndUpdateCoordinates(it)
+            },
+            placeholder = {
+                Text(
+                    text = "116.404,39.915",
+                    color = Constants.Colors.OnSurfaceDisabled
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Constants.Colors.Primary,
+                unfocusedBorderColor = Color(0x33FFFFFF),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                cursorColor = Constants.Colors.Primary,
+                focusedContainerColor = Constants.Colors.Surface,
+                unfocusedContainerColor = Constants.Colors.Surface
+            ),
+            shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp),
+            singleLine = true
+        )
+
+        // 获取坐标按钮 - 重新设计位置
+        Spacer(modifier = Modifier.height(Constants.Dimensions.PADDING_MEDIUM.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "需要坐标？",
+                color = Constants.Colors.OnSurfaceVariant,
+                fontSize = 12.sp
+            )
+
+            OutlinedButton(
+                onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://api.map.baidu.com/lbsapi/getpoint/"))
+                    viewModel.application.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                },
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Constants.Colors.Primary
+                ),
+                border = BorderStroke(1.dp, Color(0x4DFFFFFF)),
+                shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_TINY.dp),
+                modifier = Modifier.height(Constants.Dimensions.SMALL_BUTTON_HEIGHT.dp)
+            ) {
+                Text(
+                    text = "📍 获取坐标",
+                    fontSize = 12.sp
+                )
+            }
+        }
+    }
+}
+
+// 当前位置显示
+@Composable
+fun CurrentLocationDisplay(viewModel: MainViewModel) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { viewModel.handleDebugPanelToggle() },
+        colors = CardDefaults.cardColors(containerColor = Constants.Colors.Surface),
+        shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(Constants.Dimensions.PADDING_MEDIUM.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "📍",
+                color = Constants.Colors.Warning,
+                fontSize = 16.sp
+            )
+            Spacer(modifier = Modifier.width(Constants.Dimensions.PADDING_SMALL.dp))
+            Text(
+                text = "当前位置: ${if (viewModel.addressQuery.isNotEmpty()) viewModel.addressQuery else "${viewModel.currentSearchCity}市"}",
+                color = Color.White,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -1882,20 +2360,48 @@ fun InputControls(viewModel: MainViewModel) {
     }
 }
 
+// 修复后的主操作按钮
 @Composable
-fun ActionButton(viewModel: MainViewModel, onStartClick: () -> Unit) {
+fun MainActionButton(viewModel: MainViewModel, context: Context) {
     val isAddressMode = viewModel.inputMode == InputMode.ADDRESS
+    val hasValidInput = (isAddressMode && viewModel.addressQuery.isNotBlank()) ||
+                       (!isAddressMode && viewModel.coordinateInput.isNotBlank())
+
+    val buttonEnabled = hasValidInput && !viewModel.isSimulating
+    val buttonText = if (viewModel.isSimulating) "停止模拟定位" else "开始模拟定位"
 
     Button(
-        onClick = onStartClick,
-        enabled = (isAddressMode && viewModel.addressQuery.isNotBlank()) || (!isAddressMode && viewModel.coordinateInput.isNotBlank()),
-        shape = RoundedCornerShape(16.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = viewModel.buttonColor),
+        onClick = { viewModel.toggleSimulation(context) },
+        enabled = buttonEnabled || viewModel.isSimulating, // 停止按钮始终可点击
+        shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_LARGE.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = when {
+                viewModel.isSimulating -> Constants.Colors.Error
+                buttonEnabled -> Constants.Colors.Primary
+                else -> Constants.Colors.Disabled
+            },
+            contentColor = when {
+                viewModel.isSimulating -> Color.White
+                buttonEnabled -> Color.White
+                else -> Constants.Colors.OnDisabled
+            },
+            disabledContainerColor = Constants.Colors.Disabled,
+            disabledContentColor = Constants.Colors.OnDisabled
+        ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp)
+            .height(Constants.Dimensions.BUTTON_HEIGHT.dp),
+        elevation = if (buttonEnabled || viewModel.isSimulating) {
+            ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+        } else {
+            ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+        }
     ) {
-        Text(viewModel.buttonText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = buttonText,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
