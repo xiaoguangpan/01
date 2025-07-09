@@ -70,14 +70,39 @@ jobs:
         BAIDU_MAP_AK: ${{ secrets.BAIDU_MAP_AK }}
         BAIDU_MAP_SK: ${{ secrets.BAIDU_MAP_SK }}
 
+    - name: Get version info
+      id: version
+      run: |
+        VERSION_NAME=$(grep "versionName" app/build.gradle | cut -d'"' -f2)
+        VERSION_CODE=$(grep "versionCode" app/build.gradle | awk '{print $2}')
+        BUILD_TIME=$(date +"%Y%m%d_%H%M%S")
+        echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
+        echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_OUTPUT
+        echo "BUILD_TIME=$BUILD_TIME" >> $GITHUB_OUTPUT
+
+    - name: Rename APK files
+      run: |
+        mkdir -p apk-output
+        cp app/build/outputs/apk/debug/app-debug.apk "apk-output/定红_v${{ steps.version.outputs.VERSION_NAME }}_debug_${{ steps.version.outputs.BUILD_TIME }}.apk"
+        cp app/build/outputs/apk/release/app-release.apk "apk-output/定红_v${{ steps.version.outputs.VERSION_NAME }}_release_${{ steps.version.outputs.BUILD_TIME }}.apk"
+
     - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
-        name: app-debug.apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+        name: 定红_debug_APK
+        path: apk-output/*debug*.apk
+        retention-days: 30
 
     - name: Upload Release APK
       uses: actions/upload-artifact@v4
       with:
-        name: app-release.apk
-        path: app/build/outputs/apk/release/app-release.apk
+        name: 定红_release_APK
+        path: apk-output/*release*.apk
+        retention-days: 30
+
+    - name: Upload All APKs
+      uses: actions/upload-artifact@v4
+      with:
+        name: 定红_所有版本_APK
+        path: apk-output/*.apk
+        retention-days: 30

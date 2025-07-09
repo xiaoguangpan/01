@@ -1100,24 +1100,41 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 addDebugMessage("🌍 转换为WGS84坐标: ($wgsLng, $wgsLat)")
                 addDebugMessage("🎯 坐标传递链路: 建议选择 → 直接使用 → 模拟定位")
 
-                try {
-                    MockLocationManager.start(context, wgsLat, wgsLng)
-                    isSimulating = true
-                    val addressName = selectedSuggestion?.name ?: "选定位置"
-                    statusMessage = "模拟定位成功！位置：$addressName，坐标：WGS84($wgsLng, $wgsLat)"
-                    addDebugMessage("✅ 模拟定位启动成功")
-                    addDebugMessage("📱 最终GPS坐标: WGS84($wgsLng, $wgsLat)")
-                    addDebugMessage("🎉 位置一致性保证: 选择位置 = 模拟位置")
+                // 使用统一模拟定位管理器
+                val result = UnifiedMockLocationManager.start(context, wgsLat, wgsLng)
 
-                    // 显示Toast提示
-                    android.widget.Toast.makeText(
-                        context,
-                        "模拟定位成功！位置：$addressName",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                } catch (e: Exception) {
-                    statusMessage = "模拟定位启动失败: ${e.message}"
-                    addDebugMessage("❌ 模拟定位启动失败: ${e.message}")
+                when (result) {
+                    is MockLocationResult.Success -> {
+                        // 保存模拟定位的WGS84坐标
+                        simulationLatitude = wgsLat
+                        simulationLongitude = wgsLng
+
+                        isSimulating = true
+                        val addressName = selectedSuggestion?.name ?: "选定位置"
+                        statusMessage = "模拟定位成功！策略：${result.strategy.displayName}，位置：$addressName"
+                        addDebugMessage("✅ 模拟定位启动成功 - 策略: ${result.strategy.displayName}")
+                        addDebugMessage("📱 最终GPS坐标: WGS84($wgsLng, $wgsLat)")
+                        addDebugMessage("🎉 位置一致性保证: 选择位置 = 模拟位置")
+
+                        // 显示Toast提示
+                        android.widget.Toast.makeText(
+                            context,
+                            "模拟定位成功！策略：${result.strategy.displayName}",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+
+                    is MockLocationResult.Failure -> {
+                        statusMessage = "模拟失败: ${result.status.message}"
+                        addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
+                        addDebugMessage("📋 设置说明:")
+                        result.instructions.forEach { instruction ->
+                            addDebugMessage("  • ${instruction.title}: ${instruction.description}")
+                        }
+
+                        // 显示设置说明
+                        showSetupInstructions(context, result.instructions)
+                    }
                 }
                 return
             }
@@ -1397,6 +1414,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 隐藏系统标题栏以增大地图显示区域
+        supportActionBar?.hide()
+
         // 检查并请求定位权限
         checkAndRequestLocationPermission()
 
@@ -1465,18 +1485,6 @@ fun MainScreen(viewModel: MainViewModel) {
                 .fillMaxSize()
                 .padding(Constants.Dimensions.PADDING_XLARGE.dp)
         ) {
-
-            // 应用标题
-            Text(
-                text = "定红",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-            )
 
             // 调试信息面板
             DebugPanel(viewModel)
@@ -1719,7 +1727,7 @@ fun OptimizedStatusBar(viewModel: MainViewModel) {
                 .padding(Constants.Dimensions.PADDING_MEDIUM.dp),
             horizontalArrangement = Arrangement.spacedBy(Constants.Dimensions.PADDING_SMALL.dp)
         ) {
-            // 开发者模式状态
+            // 开发者模式状态 - 添加点击跳转功能
             StatusItem(
                 label = "开发者模式",
                 value = if (isDeveloperModeEnabled) {
@@ -1733,7 +1741,15 @@ fun OptimizedStatusBar(viewModel: MainViewModel) {
                     if (isMockLocationApp) "已开启 (已选择)" else "已开启 (未选择)"
                 } else "未开启",
                 isPositive = isDeveloperModeEnabled,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    try {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        viewModel.addDebugMessage("❌ 无法打开开发者选项设置: ${e.message}")
+                    }
+                }
             )
 
             // Shizuku状态
@@ -1759,10 +1775,17 @@ fun StatusItem(
     label: String,
     value: String,
     isPositive: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier.then(
+            if (onClick != null) {
+                Modifier.clickable { onClick() }
+            } else {
+                Modifier
+            }
+        ),
         colors = CardDefaults.cardColors(containerColor = Constants.Colors.Surface),
         shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp)
     ) {
@@ -1867,7 +1890,7 @@ fun TabAndFavoritesRow(viewModel: MainViewModel) {
                         Text(
                             text = "★",
                             color = Constants.Colors.Warning,
-                            fontSize = 18.sp
+                            fontSize = 20.sp // 统一图标尺寸
                         )
                     }
                 }
@@ -1911,9 +1934,7 @@ fun FavoriteButton(
         modifier = Modifier.size(Constants.Dimensions.ICON_BUTTON_SIZE.dp)
     ) {
         Card(
-            colors = CardDefaults.cardColors(
-                containerColor = if (isFavorited) Constants.Colors.Favorite else Constants.Colors.Surface
-            ),
+            colors = CardDefaults.cardColors(containerColor = Constants.Colors.Surface),
             shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp),
             modifier = Modifier.fillMaxSize()
         ) {
@@ -1923,8 +1944,8 @@ fun FavoriteButton(
             ) {
                 Text(
                     text = if (isFavorited) "♥" else "♡",
-                    color = if (isFavorited) Color.White else Constants.Colors.OnSurface,
-                    fontSize = 18.sp
+                    color = if (isFavorited) Constants.Colors.Favorite else Constants.Colors.OnSurface,
+                    fontSize = 20.sp // 统一图标尺寸
                 )
             }
         }
