@@ -1414,9 +1414,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 隐藏系统标题栏以增大地图显示区域
-        supportActionBar?.hide()
-
         // 检查并请求定位权限
         checkAndRequestLocationPermission()
 
