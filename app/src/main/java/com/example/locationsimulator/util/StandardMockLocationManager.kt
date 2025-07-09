@@ -1,6 +1,7 @@
 package com.example.locationsimulator.util
 
 import android.Manifest
+import android.app.AppOpsManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
@@ -192,11 +193,35 @@ object StandardMockLocationManager {
     private fun isMockLocationAppSelected(context: Context): Boolean {
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // 方法1：检查Settings.Secure中的模拟定位应用设置
                 val mockLocationApp = Settings.Secure.getString(
                     context.contentResolver,
-                    "mock_location_app"
+                    Settings.Secure.ALLOW_MOCK_LOCATION
                 )
-                mockLocationApp == context.packageName
+
+                // 方法2：使用AppOpsManager检查权限
+                val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+                val result = appOpsManager.checkOp(
+                    AppOpsManager.OPSTR_MOCK_LOCATION,
+                    android.os.Process.myUid(),
+                    context.packageName
+                )
+
+                // 方法3：检查系统设置中的选择应用
+                val selectedApp = try {
+                    Settings.Secure.getString(context.contentResolver, "mock_location_app")
+                } catch (e: Exception) {
+                    null
+                }
+
+                // 如果任一方法检测到应用被选择，则返回true
+                val isSelected = result == AppOpsManager.MODE_ALLOWED ||
+                                context.packageName == selectedApp ||
+                                mockLocationApp == "1"
+
+                Log.d(TAG, "模拟定位应用检测: AppOps=$result, Selected=$selectedApp, Package=${context.packageName}, Result=$isSelected")
+
+                isSelected
             } else {
                 // Android 6.0以下版本不需要选择模拟定位应用
                 true

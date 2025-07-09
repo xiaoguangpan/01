@@ -925,7 +925,8 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         // GPS定位成功
                         val address = location.addrStr ?: "未知地址"
                         val city = location.city ?: "北京"
-                        addressQuery = address
+                        // 不自动填充地址输入框，保持空白便于用户输入
+                        // addressQuery = address
                         currentLatitude = location.latitude
                         currentLongitude = location.longitude
                         // 更新搜索城市为当前定位城市
@@ -938,7 +939,8 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         // 网络定位成功
                         val address = location.addrStr ?: "未知地址"
                         val city = location.city ?: "北京"
-                        addressQuery = address
+                        // 不自动填充地址输入框，保持空白便于用户输入
+                        // addressQuery = address
                         currentLatitude = location.latitude
                         currentLongitude = location.longitude
                         // 更新搜索城市为当前定位城市
@@ -951,7 +953,8 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         // 离线定位成功
                         val address = location.addrStr ?: "未知地址"
                         val city = location.city ?: "北京"
-                        addressQuery = address
+                        // 不自动填充地址输入框，保持空白便于用户输入
+                        // addressQuery = address
                         currentLatitude = location.latitude
                         currentLongitude = location.longitude
                         // 更新搜索城市为当前定位城市
@@ -1768,9 +1771,22 @@ fun OptimizedStatusBar(viewModel: MainViewModel) {
             StatusItem(
                 label = "开发者模式",
                 value = if (isDeveloperModeEnabled) {
-                    // 实时检查模拟定位应用状态，不使用remember缓存
-                    val isMockLocationApp = checkMockLocationAppStatus(context)
-                    if (isMockLocationApp) "已开启 (已选择)" else "已开启 (未选择)"
+                    // 使用状态变量实现实时更新
+                    var mockLocationAppStatus by remember { mutableStateOf(false) }
+
+                    // 使用LaunchedEffect实现状态轮询
+                    LaunchedEffect(isDeveloperModeEnabled) {
+                        while (isDeveloperModeEnabled) {
+                            val currentStatus = checkMockLocationAppStatus(context)
+                            if (currentStatus != mockLocationAppStatus) {
+                                mockLocationAppStatus = currentStatus
+                                viewModel.addDebugMessage("🔄 模拟定位应用状态变化: ${if (currentStatus) "已选择" else "未选择"}")
+                            }
+                            delay(2000) // 每2秒检查一次
+                        }
+                    }
+
+                    if (mockLocationAppStatus) "已开启 (已选择)" else "已开启 (未选择)"
                 } else "未开启",
                 isPositive = isDeveloperModeEnabled,
                 modifier = Modifier.weight(1f),
@@ -1784,8 +1800,21 @@ fun OptimizedStatusBar(viewModel: MainViewModel) {
                 }
             )
 
-            // Shizuku状态
-            val shizukuStatus = remember { UnifiedMockLocationManager.getShizukuStatus() }
+            // Shizuku状态 - 实时更新
+            var shizukuStatus by remember { mutableStateOf(UnifiedMockLocationManager.getShizukuStatus()) }
+
+            // 使用LaunchedEffect实现Shizuku状态轮询
+            LaunchedEffect(Unit) {
+                while (true) {
+                    val currentStatus = UnifiedMockLocationManager.getShizukuStatus()
+                    if (currentStatus.status != shizukuStatus.status) {
+                        shizukuStatus = currentStatus
+                        viewModel.addDebugMessage("🔄 Shizuku状态变化: ${currentStatus.status.message}")
+                    }
+                    delay(3000) // 每3秒检查一次
+                }
+            }
+
             StatusItem(
                 label = "Shizuku",
                 value = when (shizukuStatus.status) {
