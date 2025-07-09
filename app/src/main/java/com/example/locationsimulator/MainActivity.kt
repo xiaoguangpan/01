@@ -599,12 +599,11 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 val latitude = parts[1].trim().toDoubleOrNull()
 
                 if (longitude != null && latitude != null) {
-                    // 假设输入的是WGS84坐标，转换为BD09用于地图显示
-                    val bd09Result = CoordinateConverter.wgs84ToBd09(latitude, longitude)
-                    currentLatitude = bd09Result.latitude
-                    currentLongitude = bd09Result.longitude
+                    // 假设输入的是BD09坐标（百度地图坐标系），直接使用
+                    currentLatitude = latitude
+                    currentLongitude = longitude
 
-                    addDebugMessage("🗺️ 坐标已更新: WGS84($longitude, $latitude) -> BD09(${bd09Result.longitude}, ${bd09Result.latitude})")
+                    addDebugMessage("🗺️ 坐标已更新: BD09($longitude, $latitude) - 直接使用百度坐标系")
                 }
             }
         } catch (e: Exception) {
@@ -625,12 +624,12 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         addDebugMessage("⚠️ 如遇PERMISSION_UNFINISHED错误，请检查百度开发者平台SHA1配置")
         addDebugMessage("📋 包名: com.example.locationsimulator")
         initBaiduSDK()
-        // 移除自动获取当前位置，让用户手动输入
-        // android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-        //     addDebugMessage("🌍 自动获取当前位置...")
-        //     getCurrentLocation(application)
-        // }, 2000) // 延迟2秒确保SDK初始化完成
-        addDebugMessage("💡 请手动输入地址或坐标开始使用")
+        // 启动时自动获取当前位置
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            addDebugMessage("🌍 自动获取当前位置...")
+            getCurrentLocation(application)
+        }, 2000) // 延迟2秒确保SDK初始化完成
+        addDebugMessage("💡 正在获取当前位置，也可手动输入地址或坐标")
 
         // 加载收藏位置
         loadFavoriteLocations()
@@ -1068,9 +1067,15 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     }
 
     fun toggleSimulation(context: Context) {
+        addDebugMessage("🔘 按钮点击 - 当前状态: ${if (isSimulating) "模拟中" else "未模拟"}")
+        addDebugMessage("📝 输入模式: ${if (inputMode == InputMode.ADDRESS) "地址模式" else "坐标模式"}")
+        addDebugMessage("📍 当前输入: ${if (inputMode == InputMode.ADDRESS) addressQuery else coordinateInput}")
+
         if (isSimulating) {
+            addDebugMessage("🛑 准备停止模拟定位...")
             stopSimulation(context)
         } else {
+            addDebugMessage("🚀 准备开始模拟定位...")
             startSimulation(context)
         }
     }
@@ -1463,9 +1468,18 @@ class MainActivity : ComponentActivity() {
 
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-            if (!allGranted) {
-                // 权限被拒绝，可以显示说明或引导用户到设置页面
+            if (allGranted) {
+                // 权限获取成功，通知ViewModel获取当前位置
+                Log.d("MainActivity", "Location permissions granted, getting current location")
+                // 这里可以通过Intent或其他方式通知ViewModel
+            } else {
+                // 权限被拒绝，显示说明
                 Log.w("MainActivity", "Location permissions denied")
+                android.widget.Toast.makeText(
+                    this,
+                    "定位权限被拒绝，将使用默认位置（北京）",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
@@ -1497,9 +1511,12 @@ fun MainScreen(viewModel: MainViewModel) {
 
             // 当前位置显示 - 5次点击切换调试面板
             CurrentLocationDisplay(viewModel)
+            Spacer(Modifier.height(Constants.Dimensions.PADDING_LARGE.dp))
+
             // 地图区域
             BaiduMapView(modifier = Modifier.weight(1f), isSimulating = false, viewModel = viewModel)
 
+            Spacer(Modifier.height(Constants.Dimensions.PADDING_LARGE.dp))
             // 修复后的主操作按钮
             MainActionButton(viewModel, context)
         }
@@ -1728,13 +1745,8 @@ fun OptimizedStatusBar(viewModel: MainViewModel) {
             StatusItem(
                 label = "开发者模式",
                 value = if (isDeveloperModeEnabled) {
-                    val isMockLocationApp = remember(isDeveloperModeEnabled) {
-                        if (isDeveloperModeEnabled) {
-                            checkMockLocationAppStatus(context)
-                        } else {
-                            false
-                        }
-                    }
+                    // 实时检查模拟定位应用状态，不使用remember缓存
+                    val isMockLocationApp = checkMockLocationAppStatus(context)
                     if (isMockLocationApp) "已开启 (已选择)" else "已开启 (未选择)"
                 } else "未开启",
                 isPositive = isDeveloperModeEnabled,
@@ -1792,7 +1804,7 @@ fun StatusItem(
             Text(
                 text = label,
                 color = Constants.Colors.OnSurfaceVariant,
-                fontSize = 10.sp
+                fontSize = 14.sp
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -2097,7 +2109,7 @@ fun CurrentLocationDisplay(viewModel: MainViewModel) {
             )
             Spacer(modifier = Modifier.width(Constants.Dimensions.PADDING_SMALL.dp))
             Text(
-                text = "当前位置: ${if (viewModel.addressQuery.isNotEmpty()) viewModel.addressQuery else "${viewModel.currentSearchCity}市"}",
+                text = "当前位置: ${if (viewModel.addressQuery.isNotEmpty()) viewModel.addressQuery else "${viewModel.currentSearchCity}市"} (点击5次显示调试)",
                 color = Color.White,
                 fontSize = 14.sp,
                 modifier = Modifier.weight(1f)
