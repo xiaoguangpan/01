@@ -412,8 +412,10 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
             addressQuery = location.address
             selectedSuggestion = SuggestionItem(
                 name = location.name,
-                address = location.address,
-                location = LatLng(location.latitude, location.longitude)
+                location = LatLng(location.latitude, location.longitude),
+                uid = null,
+                city = null,
+                district = null
             )
         }
 
@@ -1549,6 +1551,21 @@ fun DebugPanel(viewModel: MainViewModel) {
     }
 }
 
+// 辅助函数：检查模拟定位应用状态
+private fun checkMockLocationAppStatus(context: Context): Boolean {
+    return try {
+        val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val result = appOpsManager.checkOp(
+            AppOpsManager.OPSTR_MOCK_LOCATION,
+            android.os.Process.myUid(),
+            context.packageName
+        )
+        result == AppOpsManager.MODE_ALLOWED
+    } catch (e: Exception) {
+        false
+    }
+}
+
 @Composable
 fun StatusCheck(viewModel: MainViewModel) {
     val context = LocalContext.current
@@ -1625,21 +1642,17 @@ fun StatusCheck(viewModel: MainViewModel) {
                 color = Color.White,
                 fontSize = 12.sp
             )
+            val context = LocalContext.current
+            val isMockLocationApp = remember(isDeveloperModeEnabled) {
+                if (isDeveloperModeEnabled) {
+                    checkMockLocationAppStatus(context)
+                } else {
+                    false
+                }
+            }
+
             Text(
                 text = if (isDeveloperModeEnabled) {
-                    val isMockLocationApp = try {
-                        val context = LocalContext.current
-                        val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-                        val result = appOpsManager.checkOp(
-                            AppOpsManager.OPSTR_MOCK_LOCATION,
-                            android.os.Process.myUid(),
-                            context.packageName
-                        )
-                        result == AppOpsManager.MODE_ALLOWED
-                    } catch (e: Exception) {
-                        false
-                    }
-
                     if (isMockLocationApp) {
                         "已开启 (已选择为模拟定位应用)"
                     } else {
@@ -2099,6 +2112,7 @@ private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
 
 @Composable
 fun FavoritesDialog(viewModel: MainViewModel) {
+    val context = LocalContext.current
     if (viewModel.showFavoritesDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.toggleFavoritesDialog() },
@@ -2133,7 +2147,6 @@ fun FavoritesDialog(viewModel: MainViewModel) {
                                 onQuickStart = {
                                     viewModel.loadFavoriteLocation(location)
                                     // 快速启动模拟定位
-                                    val context = LocalContext.current
                                     viewModel.toggleSimulation(context)
                                 }
                             )
