@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
@@ -394,6 +395,32 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         }
     }
 
+    // 重载方法：接受参数的addToFavorites
+    fun addToFavorites(name: String, address: String, latitude: Double, longitude: Double) {
+        val location = FavoriteLocation(
+            name = name,
+            address = address,
+            latitude = latitude,
+            longitude = longitude
+        )
+
+        // 检查是否已存在相同位置
+        val exists = favoriteLocations.any {
+            kotlin.math.abs(it.latitude - location.latitude) < 0.0001 &&
+            kotlin.math.abs(it.longitude - location.longitude) < 0.0001
+        }
+
+        if (!exists) {
+            favoriteLocations = favoriteLocations + location
+            saveFavoriteLocations() // 持久化保存
+            addDebugMessage("⭐ 已添加到收藏: ${location.name}")
+            statusMessage = "已添加到收藏"
+        } else {
+            addDebugMessage("⚠️ 位置已存在于收藏中")
+            statusMessage = "位置已存在于收藏中"
+        }
+    }
+
     fun removeFromFavorites(location: FavoriteLocation) {
         favoriteLocations = favoriteLocations.filter { it.id != location.id }
         saveFavoriteLocations() // 持久化保存
@@ -542,6 +569,23 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     fun setInputMode(mode: InputMode) {
         _inputMode = mode
         statusMessage = null
+    }
+
+    // 更新地址查询
+    fun updateAddressQuery(query: String) {
+        addressQuery = query
+
+        // 如果查询不为空，尝试获取建议
+        if (query.isNotBlank()) {
+            fetchSuggestions(query)
+        } else {
+            suggestions = emptyList()
+        }
+    }
+
+    // 更新坐标输入
+    fun updateCoordinateInput(input: String) {
+        coordinateInput = input
     }
 
     // 解析并更新坐标 - 实时地图更新
@@ -1696,14 +1740,14 @@ fun OptimizedStatusBar(viewModel: MainViewModel) {
             val shizukuStatus = remember { UnifiedMockLocationManager.getShizukuStatus() }
             StatusItem(
                 label = "Shizuku",
-                value = when (shizukuStatus) {
+                value = when (shizukuStatus.status) {
                     ShizukuStatus.READY -> "已就绪"
-                    ShizukuStatus.NEED_PERMISSION -> "需授权"
+                    ShizukuStatus.NO_PERMISSION -> "需授权"
                     ShizukuStatus.NOT_RUNNING -> "未运行"
                     ShizukuStatus.NOT_INSTALLED -> "未安装"
                     ShizukuStatus.ERROR -> "错误"
                 },
-                isPositive = shizukuStatus == ShizukuStatus.READY,
+                isPositive = shizukuStatus.status == ShizukuStatus.READY,
                 modifier = Modifier.weight(1f)
             )
         }

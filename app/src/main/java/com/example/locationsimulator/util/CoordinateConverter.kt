@@ -30,6 +30,18 @@ object CoordinateConverter {
         return gcj02ToWgs84(lngGcj, latGcj)
     }
 
+    /**
+     * Converts WGS-84 coordinates to BD-09 coordinates.
+     * @param lngWgs WGS-84 longitude.
+     * @param latWgs WGS-84 latitude.
+     * @return A LatLng object containing BD-09 coordinates.
+     */
+    fun wgs84ToBd09(latWgs: Double, lngWgs: Double): com.baidu.mapapi.model.LatLng {
+        val (gcjLng, gcjLat) = wgs84ToGcj02(lngWgs, latWgs)
+        val (bdLng, bdLat) = gcj02ToBd09(gcjLng, gcjLat)
+        return com.baidu.mapapi.model.LatLng(bdLat, bdLng)
+    }
+
     private fun bd09ToGcj02(lngBaidu: Double, latBaidu: Double): Pair<Double, Double> {
         val x = lngBaidu - 0.0065
         val y = latBaidu - 0.006
