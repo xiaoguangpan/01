@@ -60,6 +60,13 @@ import com.example.locationsimulator.ui.theme.LocationSimulatorTheme
 import com.example.locationsimulator.util.CoordinateConverter
 import com.example.locationsimulator.util.MockLocationManager
 import com.example.locationsimulator.util.SHA1Util
+import com.example.locationsimulator.util.Constants
+import com.example.locationsimulator.util.UnifiedMockLocationManager
+import com.example.locationsimulator.util.MockLocationResult
+import com.example.locationsimulator.util.MockLocationStrategy
+import com.example.locationsimulator.util.SetupInstruction
+import com.example.locationsimulator.util.AntiDetectionMockLocationManager
+import com.example.locationsimulator.util.ShizukuStatus
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CoroutineScope
@@ -79,7 +86,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
     // 按钮颜色状态
     val buttonColor: androidx.compose.ui.graphics.Color
-        get() = if (isSimulating) androidx.compose.ui.graphics.Color.Red else androidx.compose.ui.graphics.Color(0xFF007AFF)
+        get() = if (isSimulating) Constants.Colors.Error else Constants.Colors.Primary
     private var _inputMode by mutableStateOf(InputMode.ADDRESS)
     val inputMode: InputMode get() = _inputMode
 
@@ -798,35 +805,47 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         addDebugMessage("🌍 转换为WGS84坐标: ($lngWgs, $latWgs)")
                         addDebugMessage("🎯 坐标传递链路: 地理编码API → 坐标转换 → 模拟定位")
 
-                        try {
-                            MockLocationManager.start(context, latWgs, lngWgs)
+                        // 使用统一模拟定位管理器
+                        val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs)
 
-                            // 保存模拟定位的WGS84坐标
-                            simulationLatitude = latWgs
-                            simulationLongitude = lngWgs
+                        when (result) {
+                            is MockLocationResult.Success -> {
+                                // 保存模拟定位的WGS84坐标
+                                simulationLatitude = latWgs
+                                simulationLongitude = lngWgs
 
-                            // 保持地图显示坐标为BD09坐标系（不变）
-                            currentLatitude = location.latitude
-                            currentLongitude = location.longitude
+                                // 保持地图显示坐标为BD09坐标系（不变）
+                                currentLatitude = location.latitude
+                                currentLongitude = location.longitude
 
-                            addDebugMessage("✅ 系统级模拟定位启动成功")
-                            addDebugMessage("📱 已覆盖所有定位提供者 (GPS/网络/被动)")
-                            addDebugMessage("🎯 地图坐标保持: BD09(${location.longitude}, ${location.latitude})")
-                            addDebugMessage("📱 最终GPS坐标: WGS84($lngWgs, $latWgs)")
-                            addDebugMessage("⚠️ 警告: 使用地理编码API，位置可能与建议不同")
+                                addDebugMessage("✅ 模拟定位启动成功 - 策略: ${result.strategy.displayName}")
+                                addDebugMessage("📱 已覆盖所有定位提供者 (GPS/网络/被动)")
+                                addDebugMessage("🎯 地图坐标保持: BD09(${location.longitude}, ${location.latitude})")
+                                addDebugMessage("📱 最终GPS坐标: WGS84($lngWgs, $latWgs)")
+                                addDebugMessage("⚠️ 警告: 使用地理编码API，位置可能与建议不同")
 
-                            isSimulating = true
-                            statusMessage = "模拟定位成功！位置：$addressQuery，坐标：WGS84($lngWgs, $latWgs)"
+                                isSimulating = true
+                                statusMessage = "模拟定位成功！策略：${result.strategy.displayName}，位置：$addressQuery"
 
-                            // 显示Toast提示
-                            android.widget.Toast.makeText(
-                                context,
-                                "模拟定位成功！位置：$addressQuery",
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-                        } catch (e: Exception) {
-                            addDebugMessage("❌ 模拟定位启动失败: ${e.message}")
-                            statusMessage = "模拟失败: ${e.message}"
+                                // 显示Toast提示
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "模拟定位成功！策略：${result.strategy.displayName}",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
+
+                            is MockLocationResult.Failure -> {
+                                addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
+                                addDebugMessage("📋 设置说明:")
+                                result.instructions.forEach { instruction ->
+                                    addDebugMessage("  • ${instruction.title}: ${instruction.description}")
+                                }
+                                statusMessage = "模拟失败: ${result.status.message}"
+
+                                // 显示设置说明
+                                showSetupInstructions(context, result.instructions)
+                            }
                         }
                     } else {
                         statusMessage = "无法获取坐标信息"
@@ -937,7 +956,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     fun stopSimulation(context: Context) {
         addDebugMessage("🛑 停止系统级模拟定位...")
         try {
-            MockLocationManager.stop(context)
+            UnifiedMockLocationManager.stop(context)
             isSimulating = false
             statusMessage = null
             addressQuery = ""
@@ -949,6 +968,28 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         } catch (e: Exception) {
             addDebugMessage("❌ 停止模拟定位失败: ${e.message}")
         }
+    }
+
+    /**
+     * 显示设置说明对话框
+     */
+    private fun showSetupInstructions(context: Context, instructions: List<SetupInstruction>) {
+        if (instructions.isEmpty()) return
+
+        // 在调试面板中显示详细说明
+        addDebugMessage("📋 模拟定位设置说明:")
+        instructions.forEach { instruction ->
+            addDebugMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            addDebugMessage("🔧 ${instruction.title}")
+            addDebugMessage("📝 ${instruction.description}")
+            if (instruction.action != null) {
+                addDebugMessage("💡 点击下方按钮可直接跳转到设置页面")
+            }
+        }
+        addDebugMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+        // 自动执行第一个可执行的操作
+        instructions.firstOrNull { it.action != null }?.action?.invoke()
     }
 
     override fun onCleared() {
@@ -975,7 +1016,7 @@ class MainViewModelFactory(private val application: android.app.Application) : V
 class MainActivity : ComponentActivity() {
 
     companion object {
-        private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
+        private val LOCATION_PERMISSION_REQUEST_CODE = Constants.RequestCodes.LOCATION_PERMISSION
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1043,7 +1084,7 @@ fun MainScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
     Box(modifier = Modifier
         .fillMaxSize()
-        .background(Color(0xFF1F2937))) {
+        .background(Constants.Colors.Background)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -1066,7 +1107,7 @@ fun MainScreen(viewModel: MainViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF374151))
+                    .background(Constants.Colors.Surface)
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1099,7 +1140,7 @@ fun MainScreen(viewModel: MainViewModel) {
 fun SimulatingScreen(address: String, onStopClick: () -> Unit, viewModel: MainViewModel) {
     Box(modifier = Modifier
         .fillMaxSize()
-        .background(Color(0xFF1F2937))) {
+        .background(Constants.Colors.Background)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -1320,7 +1361,8 @@ fun StatusCheck(viewModel: MainViewModel) {
             )
         }
 
-        // Shizuku状态 - 缩小
+        // Shizuku状态 - 显示详细信息
+        val shizukuStatus = remember { UnifiedMockLocationManager.getShizukuStatus() }
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
@@ -1329,6 +1371,9 @@ fun StatusCheck(viewModel: MainViewModel) {
                     try {
                         context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")?.let {
                             context.startActivity(it)
+                        } ?: run {
+                            viewModel.addDebugMessage("📋 Shizuku详细状态:")
+                            viewModel.addDebugMessage(shizukuStatus.getStatusText())
                         }
                     } catch (e: Exception) {
                         viewModel.addDebugMessage("无法打开Shizuku: ${e.message}")
@@ -1343,8 +1388,20 @@ fun StatusCheck(viewModel: MainViewModel) {
                 fontSize = 12.sp
             )
             Text(
-                text = if (isShizukuAvailable) "可用" else "不可用",
-                color = if (isShizukuAvailable) Color(0xFF4CAF50) else Color(0xFFFB8C00),
+                text = when (shizukuStatus.status) {
+                    ShizukuStatus.READY -> "就绪"
+                    ShizukuStatus.NO_PERMISSION -> "需授权"
+                    ShizukuStatus.NOT_RUNNING -> "未运行"
+                    ShizukuStatus.NOT_INSTALLED -> "未安装"
+                    ShizukuStatus.ERROR -> "错误"
+                },
+                color = when (shizukuStatus.status) {
+                    ShizukuStatus.READY -> Constants.Colors.Success
+                    ShizukuStatus.NO_PERMISSION -> Constants.Colors.Warning
+                    ShizukuStatus.NOT_RUNNING -> Constants.Colors.Warning
+                    ShizukuStatus.NOT_INSTALLED -> Constants.Colors.Error
+                    ShizukuStatus.ERROR -> Constants.Colors.Error
+                },
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
             )

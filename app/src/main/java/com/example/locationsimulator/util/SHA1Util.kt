@@ -6,50 +6,74 @@ import android.util.Log
 import java.security.MessageDigest
 
 object SHA1Util {
-    private const val TAG = "SHA1Util"
+    private val TAG = Constants.LogTags.SHA1_UTIL
+
+    // 缓存SHA1值，避免重复计算
+    @Volatile
+    private var cachedSHA1: String? = null
+
+    @Volatile
+    private var cachedSecurityCode: String? = null
     
     /**
      * 获取应用的SHA1指纹
      */
     fun getAppSHA1(context: Context): String? {
-        try {
-            val packageInfo = context.packageManager.getPackageInfo(
-                context.packageName,
-                PackageManager.GET_SIGNATURES
-            )
-            
-            val signatures = packageInfo.signatures
-            if (signatures.isNotEmpty()) {
-                val signature = signatures[0]
-                val md = MessageDigest.getInstance("SHA1")
-                md.update(signature.toByteArray())
-                
-                val digest = md.digest()
-                val sha1 = digest.joinToString(":") { 
-                    String.format("%02X", it) 
+        cachedSHA1?.let { return it }
+
+        synchronized(this) {
+            // 双重检查锁定
+            cachedSHA1?.let { return it }
+
+            try {
+                val packageInfo = context.packageManager.getPackageInfo(
+                    context.packageName,
+                    PackageManager.GET_SIGNATURES
+                )
+
+                val signatures = packageInfo.signatures
+                if (signatures.isNotEmpty()) {
+                    val signature = signatures[0]
+                    val md = MessageDigest.getInstance("SHA1")
+                    md.update(signature.toByteArray())
+
+                    val digest = md.digest()
+                    val sha1 = digest.joinToString(":") {
+                        String.format("%02X", it)
+                    }
+
+                    cachedSHA1 = sha1
+                    Log.d(TAG, "应用SHA1: $sha1")
+                    return sha1
                 }
-                
-                Log.d(TAG, "应用SHA1: $sha1")
-                return sha1
+            } catch (e: Exception) {
+                Log.e(TAG, "获取SHA1失败: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "获取SHA1失败: ${e.message}")
+            return null
         }
-        return null
     }
     
     /**
      * 生成百度地图安全码格式
      * 格式: SHA1;包名;应用名称
      */
-    fun generateBaiduSecurityCode(context: Context, appName: String = "Location Simulator"): String? {
-        val sha1 = getAppSHA1(context)
-        val packageName = context.packageName
-        
-        return if (sha1 != null) {
-            "$sha1;$packageName;$appName"
-        } else {
-            null
+    fun generateBaiduSecurityCode(context: Context, appName: String = Constants.APP_NAME): String? {
+        cachedSecurityCode?.let { return it }
+
+        synchronized(this) {
+            cachedSecurityCode?.let { return it }
+
+            val sha1 = getAppSHA1(context)
+            val packageName = context.packageName
+
+            val securityCode = if (sha1 != null) {
+                "$sha1;$packageName;$appName"
+            } else {
+                null
+            }
+
+            cachedSecurityCode = securityCode
+            return securityCode
         }
     }
     

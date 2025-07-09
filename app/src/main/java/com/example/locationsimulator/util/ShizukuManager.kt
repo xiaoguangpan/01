@@ -12,10 +12,15 @@ import java.lang.reflect.Method
 
 object ShizukuManager {
 
-    private const val TAG = "ShizukuManager"
+    private val TAG = Constants.LogTags.SHIZUKU_MANAGER
 
+    @Volatile
     private var locationService: Any? = null
-    private var locationServiceClass: Class<*>? = null
+
+    @Volatile
+    private var isInitialized = false
+
+    // 反射方法缓存
     private var setTestProviderLocationMethod: Method? = null
     private var setTestProviderEnabledMethod: Method? = null
     private var addTestProviderMethod: Method? = null
@@ -35,7 +40,7 @@ object ShizukuManager {
         }
 
         if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-            Shizuku.requestPermission(0)
+            Shizuku.requestPermission(Constants.RequestCodes.SHIZUKU_PERMISSION)
             return false
         }
 
@@ -43,7 +48,7 @@ object ShizukuManager {
     }
 
     private fun getLocationService(): Any? {
-        if (locationService != null) {
+        if (locationService != null && isInitialized) {
             return locationService
         }
 
@@ -52,29 +57,49 @@ object ShizukuManager {
             return null
         }
 
+        synchronized(this) {
+            // 双重检查锁定
+            if (locationService != null && isInitialized) {
+                return locationService
+            }
+
+            try {
+                val binder = ShizukuBinderWrapper(SystemServiceHelper.getSystemService(Context.LOCATION_SERVICE))
+
+                // 使用反射获取 ILocationManager.Stub.asInterface 方法
+                val iLocationManagerClass = Class.forName("android.location.ILocationManager")
+                val stubClass = Class.forName("android.location.ILocationManager\$Stub")
+                val asInterfaceMethod = stubClass.getMethod("asInterface", IBinder::class.java)
+
+                locationService = asInterfaceMethod.invoke(null, binder)
+
+                // 缓存反射方法
+                initializeReflectionMethods(iLocationManagerClass)
+                isInitialized = true
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to get LocationManagerService.", e)
+                locationService = null
+                isInitialized = false
+            }
+        }
+
+        return locationService
+    }
+
+    private fun initializeReflectionMethods(iLocationManagerClass: Class<*>) {
         try {
-            val binder = ShizukuBinderWrapper(SystemServiceHelper.getSystemService(Context.LOCATION_SERVICE))
-
-            // 使用反射获取 ILocationManager.Stub.asInterface 方法
-            val iLocationManagerClass = Class.forName("android.location.ILocationManager")
-            val stubClass = Class.forName("android.location.ILocationManager\$Stub")
-            val asInterfaceMethod = stubClass.getMethod("asInterface", IBinder::class.java)
-
-            locationService = asInterfaceMethod.invoke(null, binder)
-            locationServiceClass = iLocationManagerClass
-
-            // 缓存反射方法
-            setTestProviderLocationMethod = locationServiceClass?.getMethod(
+            setTestProviderLocationMethod = iLocationManagerClass.getMethod(
                 "setTestProviderLocation",
                 String::class.java,
                 Location::class.java
             )
-            setTestProviderEnabledMethod = locationServiceClass?.getMethod(
+            setTestProviderEnabledMethod = iLocationManagerClass.getMethod(
                 "setTestProviderEnabled",
                 String::class.java,
                 Boolean::class.javaPrimitiveType
             )
-            addTestProviderMethod = locationServiceClass?.getMethod(
+            addTestProviderMethod = iLocationManagerClass.getMethod(
                 "addTestProvider",
                 String::class.java,
                 Boolean::class.javaPrimitiveType,
@@ -87,16 +112,14 @@ object ShizukuManager {
                 Int::class.javaPrimitiveType,
                 Int::class.javaPrimitiveType
             )
-            removeTestProviderMethod = locationServiceClass?.getMethod(
+            removeTestProviderMethod = iLocationManagerClass.getMethod(
                 "removeTestProvider",
                 String::class.java
             )
-
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to get LocationManagerService.", e)
+            Log.e(TAG, "Failed to initialize reflection methods.", e)
+            throw e
         }
-
-        return locationService
     }
 
     fun setMockLocation(location: Location) {
