@@ -81,6 +81,9 @@ object UnifiedMockLocationManager {
             startMonitoring(context)
             Log.d(TAG, "✅ 使用标准模式")
             return MockLocationResult.Success(MockLocationStrategy.STANDARD)
+        } else {
+            val standardError = StandardMockLocationManager.getLastError()
+            Log.w(TAG, "⚠️ 标准模式失败: $standardError")
         }
 
         // Fallback Mode: Shizuku模式 (如果可用且配置正确)
@@ -112,10 +115,36 @@ object UnifiedMockLocationManager {
         // 三种模式都失败，提供设置指导
         Log.e(TAG, "❌ 所有模拟定位模式都失败")
 
-        // 优先提供标准模式的设置指导，而不是强制使用Shizuku
-        val instructions = getSetupInstructions(context, standardStatus)
+        // 收集所有失败原因
+        val standardError = StandardMockLocationManager.getLastError()
+        val allErrors = mutableListOf<String>()
 
-        return MockLocationResult.Failure(standardStatus, instructions)
+        if (standardError != null) {
+            allErrors.add("标准模式: $standardError")
+        }
+        allErrors.add("Shizuku模式: ${shizukuStatus.message}")
+
+        // 创建综合错误状态
+        val combinedError = if (standardStatus == MockLocationStatus.READY && standardError != null) {
+            // 如果权限检查通过但实际启动失败，创建新的错误状态
+            MockLocationStatus.LOCATION_SERVICE_UNAVAILABLE
+        } else {
+            standardStatus
+        }
+
+        // 优先提供标准模式的设置指导，但包含详细错误信息
+        val instructions = getSetupInstructions(context, combinedError).toMutableList()
+
+        // 添加详细错误信息
+        if (allErrors.isNotEmpty()) {
+            instructions.add(0, SetupInstruction(
+                title = "详细错误信息",
+                description = allErrors.joinToString("; "),
+                action = null
+            ))
+        }
+
+        return MockLocationResult.Failure(combinedError, instructions)
     }
     
     /**

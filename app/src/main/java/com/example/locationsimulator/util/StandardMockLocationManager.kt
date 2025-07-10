@@ -45,7 +45,15 @@ object StandardMockLocationManager {
     
     @Volatile
     private var currentLongitude = 0.0
-    
+
+    @Volatile
+    private var lastError: String? = null
+
+    /**
+     * 获取最后一次错误信息
+     */
+    fun getLastError(): String? = lastError
+
     /**
      * 检查是否具备模拟定位的基本条件
      */
@@ -77,53 +85,58 @@ object StandardMockLocationManager {
      */
     fun start(context: Context, latitude: Double, longitude: Double): Boolean {
         Log.d(TAG, "🚀 开始标准模拟定位: $latitude, $longitude")
-        
+
         val status = checkMockLocationPermissions(context)
         if (status != MockLocationStatus.READY) {
             Log.e(TAG, "❌ 模拟定位条件不满足: $status")
+            lastError = "权限检查失败: ${status.message}"
             return false
         }
-        
+
         // 停止之前的模拟
         stop(context)
-        
+
         synchronized(this) {
             if (isRunning) {
                 Log.w(TAG, "模拟定位已在运行中")
                 return true
             }
-            
+
             currentLatitude = latitude
             currentLongitude = longitude
             isRunning = true
-            
+
             val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            
+
             // 初始化测试提供者
             if (!initializeTestProviders(locationManager)) {
                 isRunning = false
+                lastError = "测试提供者初始化失败，可能是权限不足或系统限制"
+                Log.e(TAG, "❌ $lastError")
                 return false
             }
-            
+
             // 启动定期更新任务
             executor = Executors.newSingleThreadScheduledExecutor { r ->
                 Thread(r, "StandardMockLocationThread").apply {
                     isDaemon = true
                 }
             }
-            
+
             executor?.scheduleAtFixedRate({
                 if (!isRunning) return@scheduleAtFixedRate
-                
+
                 try {
                     updateMockLocation(locationManager, currentLatitude, currentLongitude)
                 } catch (e: Exception) {
                     Log.e(TAG, "❌ 更新模拟位置失败: ${e.message}", e)
+                    lastError = "位置更新失败: ${e.message}"
                 }
             }, 0, Constants.Timing.LOCATION_UPDATE_INTERVAL, TimeUnit.MILLISECONDS)
         }
-        
+
         Log.d(TAG, "✅ 标准模拟定位已启动")
+        lastError = null
         return true
     }
     

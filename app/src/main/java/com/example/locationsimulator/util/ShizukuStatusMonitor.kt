@@ -106,15 +106,28 @@ object ShizukuStatusMonitor {
      */
     fun getCurrentShizukuStatus(): ShizukuStatus {
         return try {
-            if (!isShizukuInstalled()) {
-                ShizukuStatus.NOT_INSTALLED
-            } else if (!isShizukuRunning()) {
-                ShizukuStatus.NOT_RUNNING
-            } else if (!hasShizukuPermission()) {
-                ShizukuStatus.NO_PERMISSION
-            } else {
-                ShizukuStatus.READY
+            Log.d(TAG, "🔍 开始检测Shizuku状态...")
+
+            val installed = isShizukuInstalled()
+            if (!installed) {
+                Log.d(TAG, "🔍 Shizuku状态结果: NOT_INSTALLED")
+                return ShizukuStatus.NOT_INSTALLED
             }
+
+            val running = isShizukuRunning()
+            if (!running) {
+                Log.d(TAG, "🔍 Shizuku状态结果: NOT_RUNNING")
+                return ShizukuStatus.NOT_RUNNING
+            }
+
+            val hasPermission = hasShizukuPermission()
+            if (!hasPermission) {
+                Log.d(TAG, "🔍 Shizuku状态结果: NO_PERMISSION")
+                return ShizukuStatus.NO_PERMISSION
+            }
+
+            Log.d(TAG, "🔍 Shizuku状态结果: READY")
+            ShizukuStatus.READY
         } catch (e: Exception) {
             Log.e(TAG, "检查Shizuku状态失败: ${e.message}", e)
             ShizukuStatus.ERROR
@@ -126,9 +139,29 @@ object ShizukuStatusMonitor {
      */
     private fun isShizukuInstalled(): Boolean {
         return try {
-            Shizuku.getVersion() > 0
+            // 方法1：尝试通过Shizuku API检查版本
+            val version = Shizuku.getVersion()
+            Log.d(TAG, "🔍 Shizuku API检测: 版本 $version")
+            version > 0
         } catch (e: Exception) {
-            false
+            Log.d(TAG, "🔍 Shizuku API检测失败: ${e.message}")
+
+            // 方法2：通过PackageManager检查包是否已安装
+            try {
+                val context = android.app.ActivityThread.currentApplication()
+                if (context != null) {
+                    val packageManager = context.packageManager
+                    packageManager.getPackageInfo("moe.shizuku.privileged.api", 0)
+                    Log.d(TAG, "🔍 PackageManager检测: Shizuku已安装")
+                    true
+                } else {
+                    Log.w(TAG, "🔍 无法获取应用上下文进行包检测")
+                    false
+                }
+            } catch (packageException: Exception) {
+                Log.d(TAG, "🔍 PackageManager检测: Shizuku未安装 - ${packageException.message}")
+                false
+            }
         }
     }
     
@@ -137,8 +170,11 @@ object ShizukuStatusMonitor {
      */
     private fun isShizukuRunning(): Boolean {
         return try {
-            Shizuku.pingBinder()
+            val isRunning = Shizuku.pingBinder()
+            Log.d(TAG, "🔍 Shizuku运行状态检测: ${if (isRunning) "运行中" else "未运行"}")
+            isRunning
         } catch (e: Exception) {
+            Log.d(TAG, "🔍 Shizuku运行状态检测失败: ${e.message}")
             false
         }
     }
@@ -148,8 +184,12 @@ object ShizukuStatusMonitor {
      */
     private fun hasShizukuPermission(): Boolean {
         return try {
-            Shizuku.checkSelfPermission() == Constants.RequestCodes.SHIZUKU_PERMISSION
+            val permission = Shizuku.checkSelfPermission()
+            val hasPermission = permission == Constants.RequestCodes.SHIZUKU_PERMISSION
+            Log.d(TAG, "🔍 Shizuku权限检测: 权限码=$permission, 是否有权限=$hasPermission")
+            hasPermission
         } catch (e: Exception) {
+            Log.d(TAG, "🔍 Shizuku权限检测失败: ${e.message}")
             false
         }
     }
