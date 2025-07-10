@@ -30,22 +30,26 @@ object ShizukuStatusMonitor {
     private var lastShizukuStatus = ShizukuStatus.NOT_INSTALLED
     
     private var statusChangeCallback: ((ShizukuStatus) -> Unit)? = null
-    
+
+    @Volatile
+    private var monitoringContext: Context? = null
+
     /**
      * 开始监控Shizuku状态
      */
     fun startMonitoring(context: Context, callback: ((ShizukuStatus) -> Unit)? = null) {
         if (isMonitoring) return
-        
+
+        monitoringContext = context
         statusChangeCallback = callback
         isMonitoring = true
-        
+
         executor = Executors.newSingleThreadScheduledExecutor { r ->
             Thread(r, "ShizukuStatusMonitor").apply {
                 isDaemon = true
             }
         }
-        
+
         // 立即检查一次状态
         checkShizukuStatus()
         
@@ -90,12 +94,12 @@ object ShizukuStatusMonitor {
      * 检查Shizuku状态
      */
     private fun checkShizukuStatus() {
-        val currentStatus = getCurrentShizukuStatus()
-        
+        val currentStatus = getCurrentShizukuStatus(monitoringContext)
+
         if (currentStatus != lastShizukuStatus) {
             Log.d(TAG, "📊 Shizuku状态变化: ${lastShizukuStatus.message} → ${currentStatus.message}")
             lastShizukuStatus = currentStatus
-            
+
             // 触发状态变化回调
             statusChangeCallback?.invoke(currentStatus)
         }
@@ -104,11 +108,11 @@ object ShizukuStatusMonitor {
     /**
      * 获取当前Shizuku状态
      */
-    fun getCurrentShizukuStatus(): ShizukuStatus {
+    fun getCurrentShizukuStatus(context: Context? = null): ShizukuStatus {
         return try {
             Log.d(TAG, "🔍 开始检测Shizuku状态...")
 
-            val installed = isShizukuInstalled()
+            val installed = isShizukuInstalled(context)
             if (!installed) {
                 Log.d(TAG, "🔍 Shizuku状态结果: NOT_INSTALLED")
                 return ShizukuStatus.NOT_INSTALLED
@@ -137,7 +141,7 @@ object ShizukuStatusMonitor {
     /**
      * 检查Shizuku是否已安装
      */
-    private fun isShizukuInstalled(): Boolean {
+    private fun isShizukuInstalled(context: Context? = null): Boolean {
         return try {
             // 方法1：尝试通过Shizuku API检查版本
             val version = Shizuku.getVersion()
@@ -147,19 +151,18 @@ object ShizukuStatusMonitor {
             Log.d(TAG, "🔍 Shizuku API检测失败: ${e.message}")
 
             // 方法2：通过PackageManager检查包是否已安装
-            try {
-                val context = android.app.ActivityThread.currentApplication()
-                if (context != null) {
+            if (context != null) {
+                try {
                     val packageManager = context.packageManager
                     packageManager.getPackageInfo("moe.shizuku.privileged.api", 0)
                     Log.d(TAG, "🔍 PackageManager检测: Shizuku已安装")
                     true
-                } else {
-                    Log.w(TAG, "🔍 无法获取应用上下文进行包检测")
+                } catch (packageException: Exception) {
+                    Log.d(TAG, "🔍 PackageManager检测: Shizuku未安装 - ${packageException.message}")
                     false
                 }
-            } catch (packageException: Exception) {
-                Log.d(TAG, "🔍 PackageManager检测: Shizuku未安装 - ${packageException.message}")
+            } else {
+                Log.w(TAG, "🔍 无Context可用，无法进行PackageManager检测")
                 false
             }
         }
@@ -237,8 +240,8 @@ object ShizukuStatusMonitor {
     /**
      * 获取Shizuku状态描述
      */
-    fun getStatusDescription(): String {
-        return when (val status = getCurrentShizukuStatus()) {
+    fun getStatusDescription(context: Context? = null): String {
+        return when (val status = getCurrentShizukuStatus(context)) {
             ShizukuStatus.NOT_INSTALLED -> "❌ 未安装Shizuku应用"
             ShizukuStatus.NOT_RUNNING -> "⏸️ Shizuku服务未运行"
             ShizukuStatus.NO_PERMISSION -> "🔐 需要授予Shizuku权限"
@@ -246,13 +249,13 @@ object ShizukuStatusMonitor {
             ShizukuStatus.ERROR -> "⚠️ 状态检查出错"
         }
     }
-    
+
     /**
      * 获取详细状态信息
      */
-    fun getDetailedStatus(): ShizukuDetailedStatus {
+    fun getDetailedStatus(context: Context? = null): ShizukuDetailedStatus {
         return try {
-            val installed = isShizukuInstalled()
+            val installed = isShizukuInstalled(context)
             val running = if (installed) isShizukuRunning() else false
             val hasPermission = if (running) hasShizukuPermission() else false
             val version = if (installed) {
@@ -262,13 +265,13 @@ object ShizukuStatusMonitor {
                     -1
                 }
             } else -1
-            
+
             ShizukuDetailedStatus(
                 installed = installed,
                 running = running,
                 hasPermission = hasPermission,
                 version = version,
-                status = getCurrentShizukuStatus()
+                status = getCurrentShizukuStatus(context)
             )
         } catch (e: Exception) {
             ShizukuDetailedStatus(

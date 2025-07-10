@@ -46,9 +46,10 @@ object UnifiedMockLocationManager {
     /**
      * 简化的两模式启动策略
      * Primary Mode: 高级反检测模式 (最强防检测)
-     * Fallback Mode: Shizuku模式 (系统级权限)
+     * Secondary Mode: 标准模式 (不依赖Shizuku)
+     * Fallback Mode: Shizuku模式 (系统级权限，需要增强模式开启)
      */
-    fun start(context: Context, latitude: Double, longitude: Double): MockLocationResult {
+    fun start(context: Context, latitude: Double, longitude: Double, enableShizukuMode: Boolean = false): MockLocationResult {
         Log.d(TAG, "🚀 简化模拟定位启动: $latitude, $longitude")
 
         stop(context) // 先停止之前的模拟
@@ -86,30 +87,34 @@ object UnifiedMockLocationManager {
             Log.w(TAG, "⚠️ 标准模式失败: $standardError")
         }
 
-        // Fallback Mode: Shizuku模式 (如果可用且配置正确)
-        val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus()
-        Log.d(TAG, "🔧 检查Shizuku模式 (Fallback Mode): ${shizukuStatus.message}")
+        // Fallback Mode: Shizuku模式 (仅在增强模式开启时尝试)
+        if (enableShizukuMode) {
+            val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus(context)
+            Log.d(TAG, "🔧 检查Shizuku模式 (Fallback Mode): ${shizukuStatus.message}")
 
-        when (shizukuStatus) {
-            ShizukuStatus.READY -> {
-                Log.d(TAG, "🚀 尝试Shizuku模式")
-                if (MockLocationManager.start(context, latitude, longitude)) {
-                    currentStrategy = MockLocationStrategy.SHIZUKU
-                    isRunning = true
-                    startMonitoring(context)
-                    Log.d(TAG, "✅ 使用Shizuku模式")
-                    return MockLocationResult.Success(MockLocationStrategy.SHIZUKU)
+            when (shizukuStatus) {
+                ShizukuStatus.READY -> {
+                    Log.d(TAG, "🚀 尝试Shizuku模式")
+                    if (MockLocationManager.start(context, latitude, longitude)) {
+                        currentStrategy = MockLocationStrategy.SHIZUKU
+                        isRunning = true
+                        startMonitoring(context)
+                        Log.d(TAG, "✅ 使用Shizuku模式")
+                        return MockLocationResult.Success(MockLocationStrategy.SHIZUKU)
+                    }
+                }
+                ShizukuStatus.NO_PERMISSION -> {
+                    // 请求权限并标记稍后重试
+                    ShizukuStatusMonitor.requestShizukuPermission()
+                    retryShizukuMode = true
+                    Log.d(TAG, "🔐 已请求Shizuku权限，稍后重试")
+                }
+                else -> {
+                    Log.w(TAG, "Shizuku不可用: ${shizukuStatus.message}")
                 }
             }
-            ShizukuStatus.NO_PERMISSION -> {
-                // 请求权限并标记稍后重试
-                ShizukuStatusMonitor.requestShizukuPermission()
-                retryShizukuMode = true
-                Log.d(TAG, "🔐 已请求Shizuku权限，稍后重试")
-            }
-            else -> {
-                Log.w(TAG, "Shizuku不可用: ${shizukuStatus.message}")
-            }
+        } else {
+            Log.d(TAG, "🔧 Shizuku增强模式未开启，跳过Shizuku模式")
         }
 
         // 三种模式都失败，提供设置指导

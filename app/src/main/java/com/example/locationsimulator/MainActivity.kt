@@ -165,6 +165,12 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     private var addressTabClickCount = 0
     private var lastAddressTabClickTime = 0L
 
+    // Shizuku增强模式
+    var isShizukuEnhancedModeEnabled by mutableStateOf(false)
+        private set
+    private var shizukuClickCount = 0
+    private var lastShizukuClickTime = 0L
+
     fun addDebugMessage(message: String) {
         val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
         val newMessage = "[$timestamp] $message"
@@ -220,6 +226,27 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
             addDebugMessage("🔧 调试面板${if (isDebugPanelVisible) "显示" else "隐藏"}")
         } else {
             addDebugMessage("🔢 调试面板切换: ${debugPanelClickCount}/5")
+        }
+    }
+
+    // 5次点击切换Shizuku增强模式
+    fun handleShizukuEnhancedModeToggle() {
+        val currentTime = System.currentTimeMillis()
+
+        // 如果距离上次点击超过3秒，重置计数
+        if (currentTime - lastShizukuClickTime > 3000) {
+            shizukuClickCount = 0
+        }
+
+        shizukuClickCount++
+        lastShizukuClickTime = currentTime
+
+        if (shizukuClickCount >= 5) {
+            isShizukuEnhancedModeEnabled = !isShizukuEnhancedModeEnabled
+            shizukuClickCount = 0
+            addDebugMessage("🚀 Shizuku增强模式${if (isShizukuEnhancedModeEnabled) "已开启" else "已关闭"}")
+        } else {
+            addDebugMessage("🔢 Shizuku增强模式切换: ${shizukuClickCount}/5")
         }
     }
 
@@ -1109,7 +1136,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 addDebugMessage("🎯 坐标传递链路: 建议选择 → 直接使用 → 模拟定位")
 
                 // 使用统一模拟定位管理器
-                val result = UnifiedMockLocationManager.start(context, wgsLat, wgsLng)
+                val result = UnifiedMockLocationManager.start(context, wgsLat, wgsLng, isShizukuEnhancedModeEnabled)
 
                 when (result) {
                     is MockLocationResult.Success -> {
@@ -1192,7 +1219,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         addDebugMessage("🎯 坐标传递链路: 地理编码API → 坐标转换 → 模拟定位")
 
                         // 使用统一模拟定位管理器
-                        val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs)
+                        val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs, isShizukuEnhancedModeEnabled)
 
                         when (result) {
                             is MockLocationResult.Success -> {
@@ -1303,7 +1330,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 Log.d("LocationViewModel", "Starting comprehensive mock location: lng=$lngWgs, lat=$latWgs")
 
                 // 使用统一模拟定位管理器
-                val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs)
+                val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs, isShizukuEnhancedModeEnabled)
 
                 when (result) {
                     is MockLocationResult.Success -> {
@@ -1825,7 +1852,9 @@ fun OptimizedStatusBar(viewModel: MainViewModel) {
                     ShizukuStatus.ERROR -> "检测错误"
                 },
                 isPositive = shizukuStatus.status == ShizukuStatus.READY,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                onClick = { viewModel.handleShizukuEnhancedModeToggle() },
+                isEnhanced = viewModel.isShizukuEnhancedModeEnabled
             )
         }
     }
@@ -1837,7 +1866,8 @@ fun StatusItem(
     value: String,
     isPositive: Boolean,
     modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    isEnhanced: Boolean = false
 ) {
     Card(
         modifier = modifier.then(
@@ -1847,7 +1877,9 @@ fun StatusItem(
                 Modifier
             }
         ),
-        colors = CardDefaults.cardColors(containerColor = Constants.Colors.Surface),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isEnhanced) Constants.Colors.Primary.copy(alpha = 0.3f) else Constants.Colors.Surface
+        ),
         shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp)
     ) {
         Column(
