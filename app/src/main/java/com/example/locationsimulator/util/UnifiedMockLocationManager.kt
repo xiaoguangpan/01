@@ -73,6 +73,16 @@ object UnifiedMockLocationManager {
             return MockLocationResult.Success(MockLocationStrategy.ANTI_DETECTION)
         }
 
+        // Secondary Mode: 标准模式 (不依赖Shizuku)
+        Log.d(TAG, "🔧 尝试标准模式 (Secondary Mode)")
+        if (StandardMockLocationManager.start(context, latitude, longitude)) {
+            currentStrategy = MockLocationStrategy.STANDARD
+            isRunning = true
+            startMonitoring(context)
+            Log.d(TAG, "✅ 使用标准模式")
+            return MockLocationResult.Success(MockLocationStrategy.STANDARD)
+        }
+
         // Fallback Mode: Shizuku模式 (如果可用且配置正确)
         val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus()
         Log.d(TAG, "🔧 检查Shizuku模式 (Fallback Mode): ${shizukuStatus.message}")
@@ -99,19 +109,11 @@ object UnifiedMockLocationManager {
             }
         }
 
-        // 两种模式都失败，提供设置指导
-        Log.e(TAG, "❌ 两种模拟定位模式都失败")
+        // 三种模式都失败，提供设置指导
+        Log.e(TAG, "❌ 所有模拟定位模式都失败")
 
-        val instructions = if (shizukuStatus != ShizukuStatus.NOT_INSTALLED) {
-            // Shizuku已安装，提供配置指导
-            getShizukuSetupInstructions(context, shizukuStatus)
-        } else {
-            // 提供Shizuku安装指导
-            getShizukuInstallInstructions(context)
-        }
-
-        // 启动Shizuku状态监控，以便用户配置后自动重试
-        startShizukuMonitoring(context)
+        // 优先提供标准模式的设置指导，而不是强制使用Shizuku
+        val instructions = getSetupInstructions(context, standardStatus)
 
         return MockLocationResult.Failure(standardStatus, instructions)
     }

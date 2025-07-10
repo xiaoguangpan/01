@@ -1818,11 +1818,11 @@ fun OptimizedStatusBar(viewModel: MainViewModel) {
             StatusItem(
                 label = "Shizuku",
                 value = when (shizukuStatus.status) {
-                    ShizukuStatus.READY -> "已就绪"
-                    ShizukuStatus.NO_PERMISSION -> "需授权"
-                    ShizukuStatus.NOT_RUNNING -> "未运行"
+                    ShizukuStatus.READY -> "已安装 (已开启)"
+                    ShizukuStatus.NO_PERMISSION -> "已安装 (需授权)"
+                    ShizukuStatus.NOT_RUNNING -> "已安装 (未开启)"
                     ShizukuStatus.NOT_INSTALLED -> "未安装"
-                    ShizukuStatus.ERROR -> "错误"
+                    ShizukuStatus.ERROR -> "检测错误"
                 },
                 isPositive = shizukuStatus.status == ShizukuStatus.READY,
                 modifier = Modifier.weight(1f)
@@ -2299,11 +2299,11 @@ fun StatusCheck(viewModel: MainViewModel) {
             )
             Text(
                 text = when (shizukuStatus.status) {
-                    ShizukuStatus.READY -> "就绪"
-                    ShizukuStatus.NO_PERMISSION -> "需授权"
-                    ShizukuStatus.NOT_RUNNING -> "未运行"
+                    ShizukuStatus.READY -> "已安装 (已开启)"
+                    ShizukuStatus.NO_PERMISSION -> "已安装 (需授权)"
+                    ShizukuStatus.NOT_RUNNING -> "已安装 (未开启)"
                     ShizukuStatus.NOT_INSTALLED -> "未安装"
-                    ShizukuStatus.ERROR -> "错误"
+                    ShizukuStatus.ERROR -> "检测错误"
                 },
                 color = when (shizukuStatus.status) {
                     ShizukuStatus.READY -> Constants.Colors.Success

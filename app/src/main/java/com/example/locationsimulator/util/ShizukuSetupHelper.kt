@@ -225,12 +225,10 @@ object ShizukuSetupHelper {
     // ========== 操作方法 ==========
     
     private fun openShizukuDownloadPage(context: Context) {
-        try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/RikkaApps/Shizuku/releases"))
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            Log.e(TAG, "无法打开Shizuku下载页面", e)
-        }
+        // 不自动跳转到下载页面，只记录日志
+        Log.d(TAG, "📋 Shizuku下载页面: https://github.com/RikkaApps/Shizuku/releases")
+        Log.d(TAG, "💡 用户可选择是否安装Shizuku以获得更好的模拟定位效果")
+        // 移除强制跳转逻辑，让用户自主选择
     }
     
     private fun openWirelessDebuggingSettings(context: Context) {
