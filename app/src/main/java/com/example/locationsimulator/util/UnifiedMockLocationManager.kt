@@ -88,11 +88,11 @@ object UnifiedMockLocationManager {
         }
 
         // Fallback Mode: Shizuku模式 (仅在增强模式开启时尝试)
-        if (enableShizukuMode) {
-            val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus(context)
-            Log.d(TAG, "🔧 检查Shizuku模式 (Fallback Mode): ${shizukuStatus.message}")
+        val shizukuStatus = if (enableShizukuMode) {
+            val status = ShizukuStatusMonitor.getCurrentShizukuStatus(context)
+            Log.d(TAG, "🔧 检查Shizuku模式 (Fallback Mode): ${status.message}")
 
-            when (shizukuStatus) {
+            when (status) {
                 ShizukuStatus.READY -> {
                     Log.d(TAG, "🚀 尝试Shizuku模式")
                     if (MockLocationManager.start(context, latitude, longitude)) {
@@ -110,11 +110,13 @@ object UnifiedMockLocationManager {
                     Log.d(TAG, "🔐 已请求Shizuku权限，稍后重试")
                 }
                 else -> {
-                    Log.w(TAG, "Shizuku不可用: ${shizukuStatus.message}")
+                    Log.w(TAG, "Shizuku不可用: ${status.message}")
                 }
             }
+            status
         } else {
             Log.d(TAG, "🔧 Shizuku增强模式未开启，跳过Shizuku模式")
+            ShizukuStatusMonitor.getCurrentShizukuStatus(context)
         }
 
         // 三种模式都失败，提供设置指导
