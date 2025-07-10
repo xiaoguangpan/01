@@ -95,7 +95,8 @@ object UnifiedMockLocationManager {
         val shizukuStatus = if (enableShizukuMode) {
             Log.d(TAG, "🔧 Shizuku增强模式已开启，开始检查Shizuku状态...")
             val status = ShizukuStatusMonitor.getCurrentShizukuStatus(context)
-            Log.d(TAG, "🔧 Shizuku状态检查结果: ${status.message}")
+            Log.d(TAG, "🔧 Shizuku状态检查结果: ${status.name} - ${status.message}")
+            Log.d(TAG, "🔧 准备尝试Shizuku模式...")
 
             when (status) {
                 ShizukuStatus.READY -> {
@@ -118,7 +119,18 @@ object UnifiedMockLocationManager {
                     // 请求权限并标记稍后重试
                     ShizukuStatusMonitor.requestShizukuPermission()
                     retryShizukuMode = true
-                    Log.d(TAG, "🔐 已请求Shizuku权限，稍后重试")
+                    Log.w(TAG, "🔐 Shizuku已安装但需要授权，已请求权限")
+                }
+                ShizukuStatus.NOT_RUNNING -> {
+                    Log.w(TAG, "⚠️ Shizuku已安装但未启动")
+                    Log.w(TAG, "💡 请启动Shizuku应用并开启服务，然后重试模拟定位")
+                }
+                ShizukuStatus.NOT_INSTALLED -> {
+                    Log.w(TAG, "⚠️ 增强模式已开启但Shizuku未安装")
+                    Log.w(TAG, "💡 请安装Shizuku应用以使用增强功能，或关闭增强模式使用标准功能")
+                }
+                ShizukuStatus.ERROR -> {
+                    Log.w(TAG, "⚠️ Shizuku状态检测出错")
                 }
                 else -> {
                     Log.w(TAG, "Shizuku不可用: ${status.message}")
@@ -515,12 +527,11 @@ object UnifiedMockLocationManager {
  */
 enum class MockLocationStrategy(val displayName: String) {
     NONE("未启用"),
-    ANTI_DETECTION("高级反检测模式 (Primary)"),
-    SHIZUKU("Shizuku模式 (Fallback)"),
-    // 保留兼容性，但不在新策略中使用
-    @Deprecated("使用简化的两模式策略")
+    ANTI_DETECTION("高级反检测模式"),
     STANDARD("标准模式"),
-    @Deprecated("使用简化的两模式策略")
+    SHIZUKU("Shizuku增强模式"),
+    // 保留兼容性
+    @Deprecated("使用新的策略名称")
     ENHANCED("增强兼容模式")
 }
 

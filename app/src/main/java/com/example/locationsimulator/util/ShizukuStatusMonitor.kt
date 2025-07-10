@@ -1,6 +1,7 @@
 package com.example.locationsimulator.util
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import rikka.shizuku.Shizuku
 import java.util.concurrent.Executors
@@ -173,6 +174,13 @@ object ShizukuStatusMonitor {
                 }
             }
             Log.d(TAG, "🔍 PackageManager检测: 所有Shizuku包都未找到或权限不足")
+
+            // 备选方案：通过Intent查询检测Shizuku
+            Log.d(TAG, "🔍 尝试备选检测方案: Intent查询")
+            if (tryIntentBasedDetection(context)) {
+                Log.d(TAG, "🔍 Intent检测: Shizuku已安装")
+                return true
+            }
         } else {
             Log.w(TAG, "🔍 无Context可用，跳过PackageManager检测")
         }
@@ -193,7 +201,41 @@ object ShizukuStatusMonitor {
             false
         }
     }
-    
+
+    /**
+     * 备选检测方案：通过Intent查询检测Shizuku
+     */
+    private fun tryIntentBasedDetection(context: Context): Boolean {
+        return try {
+            val packageManager = context.packageManager
+
+            // 尝试查询Shizuku的主Activity
+            val shizukuIntents = listOf(
+                Intent().setClassName("moe.shizuku.privileged.api", "moe.shizuku.manager.MainActivity"),
+                Intent().setClassName("rikka.shizuku.privileged.api", "rikka.shizuku.manager.MainActivity"),
+                Intent().setClassName("moe.shizuku.manager", "moe.shizuku.manager.MainActivity")
+            )
+
+            for (intent in shizukuIntents) {
+                try {
+                    val resolveInfo = packageManager.resolveActivity(intent, 0)
+                    if (resolveInfo != null) {
+                        Log.d(TAG, "🔍 Intent检测: 找到Shizuku Activity - ${intent.component}")
+                        return true
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "🔍 Intent检测失败: ${intent.component} - ${e.message}")
+                }
+            }
+
+            Log.d(TAG, "🔍 Intent检测: 未找到Shizuku Activity")
+            false
+        } catch (e: Exception) {
+            Log.w(TAG, "🔍 Intent检测异常: ${e.message}")
+            false
+        }
+    }
+
     /**
      * 检查Shizuku是否正在运行
      */

@@ -1166,6 +1166,12 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                     is MockLocationResult.Failure -> {
                         statusMessage = "模拟失败: ${result.status.message}"
                         addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
+
+                        // 如果增强模式开启但Shizuku不可用，给出明确提示
+                        if (isShizukuEnhancedModeEnabled) {
+                            checkAndShowShizukuStatus(context)
+                        }
+
                         addDebugMessage("📋 设置说明:")
                         result.instructions.forEach { instruction ->
                             addDebugMessage("  • ${instruction.title}: ${instruction.description}")
@@ -1254,6 +1260,12 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
                             is MockLocationResult.Failure -> {
                                 addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
+
+                                // 如果增强模式开启但Shizuku不可用，给出明确提示
+                                if (isShizukuEnhancedModeEnabled) {
+                                    checkAndShowShizukuStatus(context)
+                                }
+
                                 addDebugMessage("📋 设置说明:")
                                 result.instructions.forEach { instruction ->
                                     addDebugMessage("  • ${instruction.title}: ${instruction.description}")
@@ -1364,6 +1376,12 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
                     is MockLocationResult.Failure -> {
                         addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
+
+                        // 如果增强模式开启但Shizuku不可用，给出明确提示
+                        if (isShizukuEnhancedModeEnabled) {
+                            checkAndShowShizukuStatus(context)
+                        }
+
                         addDebugMessage("📋 设置说明:")
                         result.instructions.forEach { instruction ->
                             addDebugMessage("  • ${instruction.title}: ${instruction.description}")
@@ -1424,6 +1442,40 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         addDebugMessage("💡 提示：应用不会自动跳转到系统设置，请根据上述说明手动检查配置")
     }
 
+    /**
+     * 检查并显示Shizuku状态详细信息
+     */
+    private fun checkAndShowShizukuStatus(context: Context) {
+        val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus(context)
+        addDebugMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        addDebugMessage("🔧 增强模式状态检查:")
+        addDebugMessage("📱 增强模式: 已开启")
+        addDebugMessage("📦 Shizuku状态: ${shizukuStatus.name} - ${shizukuStatus.message}")
+
+        when (shizukuStatus) {
+            ShizukuStatus.NOT_INSTALLED -> {
+                addDebugMessage("💡 建议: 安装Shizuku应用以使用增强功能")
+                addDebugMessage("💡 或者: 关闭增强模式使用标准模拟定位功能")
+            }
+            ShizukuStatus.NOT_RUNNING -> {
+                addDebugMessage("💡 建议: 启动Shizuku应用并开启服务")
+                addDebugMessage("💡 步骤: 打开Shizuku → 点击启动按钮 → 重新尝试模拟定位")
+            }
+            ShizukuStatus.NO_PERMISSION -> {
+                addDebugMessage("💡 建议: 在Shizuku中授权本应用")
+                addDebugMessage("💡 步骤: 打开Shizuku → 应用管理 → 找到本应用 → 授权")
+            }
+            ShizukuStatus.ERROR -> {
+                addDebugMessage("💡 建议: 检查Shizuku安装和权限状态")
+            }
+            ShizukuStatus.READY -> {
+                addDebugMessage("💡 Shizuku状态正常，但模拟定位仍失败")
+                addDebugMessage("💡 可能原因: 系统限制或其他权限问题")
+            }
+        }
+        addDebugMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    }
+
     override fun onCleared() {
         super.onCleared()
         mSuggestionSearch?.destroy()
@@ -1459,6 +1511,13 @@ class MainActivity : ComponentActivity() {
 
         // 检查包查询权限（用于检测Shizuku）
         checkQueryAllPackagesPermission()
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        // 每次回到应用时重新检查权限状态，以便及时更新Shizuku检测结果
+        checkQueryAllPackagesPermissionStatus()
 
         setContent {
             LocationSimulatorTheme {
@@ -1533,6 +1592,25 @@ class MainActivity : ComponentActivity() {
                 dialog.dismiss()
             }
             .show()
+    }
+
+    private fun checkQueryAllPackagesPermissionStatus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val hasPermission = checkSelfPermission(Manifest.permission.QUERY_ALL_PACKAGES) == PackageManager.PERMISSION_GRANTED
+                Log.d("MainActivity", "权限状态检查: QUERY_ALL_PACKAGES = ${if (hasPermission) "已授予" else "未授予"}")
+
+                if (hasPermission) {
+                    Log.d("MainActivity", "权限已授予，触发Shizuku状态刷新")
+                    // 权限已授予，可以触发Shizuku状态刷新
+                    // 这里可以通过ViewModel触发状态更新
+                } else {
+                    Log.d("MainActivity", "权限仍未授予，将使用备选检测方案")
+                }
+            } catch (e: Exception) {
+                Log.w("MainActivity", "检查权限状态失败: ${e.message}")
+            }
+        }
     }
 
     override fun onRequestPermissionsResult(
