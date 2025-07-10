@@ -254,22 +254,27 @@ object StandardMockLocationManager {
     }
     
     private fun initializeTestProviders(locationManager: LocationManager): Boolean {
-        var success = true
-        
+        Log.d(TAG, "🔧 开始初始化测试提供者...")
+        var successCount = 0
+        var totalProviders = ALL_PROVIDERS.size
+
         ALL_PROVIDERS.forEach { provider ->
             try {
+                Log.d(TAG, "🔧 处理提供者: $provider")
+
                 // 先移除可能存在的测试提供者
                 try {
                     locationManager.removeTestProvider(provider)
+                    Log.d(TAG, "🗑️ 移除旧的测试提供者: $provider")
                 } catch (e: Exception) {
-                    // 忽略移除失败的错误
+                    Log.d(TAG, "🗑️ 移除测试提供者失败（可能不存在）: $provider")
                 }
-                
+
                 // 添加测试提供者
                 locationManager.addTestProvider(
                     provider,
                     false, // requiresNetwork
-                    false, // requiresSatellite  
+                    false, // requiresSatellite
                     false, // requiresCell
                     false, // hasMonetaryCost
                     true,  // supportsAltitude
@@ -278,19 +283,34 @@ object StandardMockLocationManager {
                     android.location.Criteria.POWER_LOW,
                     android.location.Criteria.ACCURACY_FINE
                 )
-                
+
                 // 启用测试提供者
                 locationManager.setTestProviderEnabled(provider, true)
-                
+
                 Log.d(TAG, "✅ 初始化测试提供者成功: $provider")
-                
+                successCount++
+
+            } catch (e: SecurityException) {
+                Log.e(TAG, "❌ 测试提供者权限不足 $provider: ${e.message}")
+                lastError = "权限不足：无法创建测试提供者 $provider"
+            } catch (e: IllegalArgumentException) {
+                Log.e(TAG, "❌ 测试提供者参数错误 $provider: ${e.message}")
+                lastError = "参数错误：测试提供者 $provider 配置无效"
             } catch (e: Exception) {
                 Log.e(TAG, "❌ 初始化测试提供者失败 $provider: ${e.message}", e)
-                success = false
+                lastError = "初始化失败：测试提供者 $provider - ${e.message}"
             }
         }
-        
-        return success
+
+        Log.d(TAG, "📊 测试提供者初始化结果: $successCount/$totalProviders 成功")
+
+        // 只要有一个提供者成功就认为初始化成功
+        val result = successCount > 0
+        if (!result) {
+            lastError = "所有测试提供者初始化失败，可能是权限不足或系统限制"
+        }
+
+        return result
     }
     
     private fun updateMockLocation(locationManager: LocationManager, lat: Double, lng: Double) {

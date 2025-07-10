@@ -1847,15 +1847,19 @@ fun OptimizedStatusBar(viewModel: MainViewModel) {
             }
 
             StatusItem(
-                label = "Shizuku",
-                value = when (shizukuStatus.status) {
-                    ShizukuStatus.READY -> "已安装 (已开启)"
-                    ShizukuStatus.NO_PERMISSION -> "已安装 (需授权)"
-                    ShizukuStatus.NOT_RUNNING -> "已安装 (未开启)"
-                    ShizukuStatus.NOT_INSTALLED -> "未安装"
-                    ShizukuStatus.ERROR -> "检测错误"
+                label = "Shizuku增强",
+                value = if (viewModel.isShizukuEnhancedModeEnabled) {
+                    when (shizukuStatus.status) {
+                        ShizukuStatus.READY -> "已开启 (就绪)"
+                        ShizukuStatus.NO_PERMISSION -> "已开启 (需授权)"
+                        ShizukuStatus.NOT_RUNNING -> "已开启 (未运行)"
+                        ShizukuStatus.NOT_INSTALLED -> "已开启 (未安装)"
+                        ShizukuStatus.ERROR -> "已开启 (检测错误)"
+                    }
+                } else {
+                    "未启用"
                 },
-                isPositive = shizukuStatus.status == ShizukuStatus.READY,
+                isPositive = viewModel.isShizukuEnhancedModeEnabled && shizukuStatus.status == ShizukuStatus.READY,
                 modifier = Modifier.weight(1f),
                 onClick = { viewModel.handleShizukuEnhancedModeToggle() },
                 isEnhanced = viewModel.isShizukuEnhancedModeEnabled
@@ -1882,7 +1886,10 @@ fun StatusItem(
             }
         ),
         colors = CardDefaults.cardColors(
-            containerColor = if (isEnhanced) Constants.Colors.Primary.copy(alpha = 0.3f) else Constants.Colors.Surface
+            containerColor = if (isEnhanced)
+                Constants.Colors.Primary.copy(alpha = 0.2f)
+            else
+                Constants.Colors.Surface
         ),
         shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp)
     ) {

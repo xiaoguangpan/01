@@ -159,10 +159,20 @@ object ShizukuStatusMonitor {
                     Log.d(TAG, "🔍 PackageManager检测: 找到Shizuku包 $packageName, 版本: ${packageInfo.versionName}")
                     return true
                 } catch (packageException: Exception) {
-                    Log.d(TAG, "🔍 PackageManager检测: 包 $packageName 未找到")
+                    when (packageException) {
+                        is android.content.pm.PackageManager.NameNotFoundException -> {
+                            Log.d(TAG, "🔍 PackageManager检测: 包 $packageName 未安装")
+                        }
+                        is SecurityException -> {
+                            Log.w(TAG, "🔍 PackageManager检测: 包 $packageName 权限不足 - ${packageException.message}")
+                        }
+                        else -> {
+                            Log.w(TAG, "🔍 PackageManager检测: 包 $packageName 检测失败 - ${packageException.message}")
+                        }
+                    }
                 }
             }
-            Log.d(TAG, "🔍 PackageManager检测: 所有Shizuku包都未找到")
+            Log.d(TAG, "🔍 PackageManager检测: 所有Shizuku包都未找到或权限不足")
         } else {
             Log.w(TAG, "🔍 无Context可用，跳过PackageManager检测")
         }

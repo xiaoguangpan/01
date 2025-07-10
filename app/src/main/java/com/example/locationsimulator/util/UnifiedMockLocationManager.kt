@@ -59,15 +59,13 @@ object UnifiedMockLocationManager {
         currentLatitude = latitude
         currentLongitude = longitude
 
-        // 检查基础权限状态
+        // 检查基础权限状态（仅作为参考，不阻止尝试）
         Log.d(TAG, "🔍 开始检查基础权限状态...")
         val standardStatus = StandardMockLocationManager.checkMockLocationPermissions(context)
         Log.d(TAG, "📊 基础权限检查结果: ${standardStatus.message}")
 
         if (standardStatus != MockLocationStatus.READY) {
-            Log.w(TAG, "⚠️ 基础权限不满足，无法启动模拟定位")
-            Log.w(TAG, "💡 将显示设置指导但不会自动跳转到系统设置")
-            return MockLocationResult.Failure(standardStatus, getSetupInstructions(context, standardStatus))
+            Log.w(TAG, "⚠️ 基础权限检查未通过，但仍将尝试启动模拟定位")
         }
 
         // Primary Mode: 高级反检测模式 (默认使用最强方法)

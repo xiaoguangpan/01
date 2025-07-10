@@ -28,6 +28,17 @@
     <!-- 小米设备深度反检测权限 -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+
+    <!-- 包查询权限 - Android 11+ 需要此权限来查询其他应用 -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- 特定包查询声明 - 更精确的权限控制 -->
+    <queries>
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="rikka.shizuku.privileged.api" />
+        <package android:name="moe.shizuku.manager" />
+    </queries>
     <uses-permission android:name="android.permission.MODIFY_PHONE_STATE" />
     <uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS" />
     <uses-permission android:name="android.permission.WRITE_MEDIA_STORAGE" />
