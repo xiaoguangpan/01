@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
@@ -1456,6 +1457,9 @@ class MainActivity : ComponentActivity() {
         // 检查并请求定位权限
         checkAndRequestLocationPermission()
 
+        // 检查包查询权限（用于检测Shizuku）
+        checkQueryAllPackagesPermission()
+
         setContent {
             LocationSimulatorTheme {
                 val viewModel: MainViewModel = viewModel(
@@ -1491,6 +1495,44 @@ class MainActivity : ComponentActivity() {
                 LOCATION_PERMISSION_REQUEST_CODE
             )
         }
+    }
+
+    private fun checkQueryAllPackagesPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+ 需要检查QUERY_ALL_PACKAGES权限
+            try {
+                val hasPermission = checkSelfPermission(Manifest.permission.QUERY_ALL_PACKAGES) == PackageManager.PERMISSION_GRANTED
+                Log.d("MainActivity", "QUERY_ALL_PACKAGES权限状态: ${if (hasPermission) "已授予" else "未授予"}")
+
+                if (!hasPermission) {
+                    // 显示权限说明并引导用户到设置页面
+                    showQueryAllPackagesPermissionDialog()
+                }
+            } catch (e: Exception) {
+                Log.w("MainActivity", "检查QUERY_ALL_PACKAGES权限失败: ${e.message}")
+            }
+        } else {
+            Log.d("MainActivity", "Android 11以下版本，无需QUERY_ALL_PACKAGES权限")
+        }
+    }
+
+    private fun showQueryAllPackagesPermissionDialog() {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("权限说明")
+            .setMessage("为了检测Shizuku应用的安装状态，需要授予\"查询所有应用包\"权限。\n\n请在应用设置中找到\"权限\"→\"查询所有应用包\"并开启。")
+            .setPositiveButton("去设置") { _, _ ->
+                try {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    intent.data = Uri.parse("package:$packageName")
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "无法打开应用设置页面", e)
+                }
+            }
+            .setNegativeButton("稍后") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
     }
 
     override fun onRequestPermissionsResult(
@@ -1847,22 +1889,16 @@ fun OptimizedStatusBar(viewModel: MainViewModel) {
             }
 
             StatusItem(
-                label = "Shizuku增强",
+                label = "增强模式",
                 value = if (viewModel.isShizukuEnhancedModeEnabled) {
-                    when (shizukuStatus.status) {
-                        ShizukuStatus.READY -> "已开启 (就绪)"
-                        ShizukuStatus.NO_PERMISSION -> "已开启 (需授权)"
-                        ShizukuStatus.NOT_RUNNING -> "已开启 (未运行)"
-                        ShizukuStatus.NOT_INSTALLED -> "已开启 (未安装)"
-                        ShizukuStatus.ERROR -> "已开启 (检测错误)"
-                    }
+                    "已开启"
                 } else {
-                    "未启用"
+                    "未开启"
                 },
-                isPositive = viewModel.isShizukuEnhancedModeEnabled && shizukuStatus.status == ShizukuStatus.READY,
+                isPositive = viewModel.isShizukuEnhancedModeEnabled,
                 modifier = Modifier.weight(1f),
                 onClick = { viewModel.handleShizukuEnhancedModeToggle() },
-                isEnhanced = viewModel.isShizukuEnhancedModeEnabled
+                isEnhanced = false  // 不使用背景色变化
             )
         }
     }
@@ -1886,10 +1922,7 @@ fun StatusItem(
             }
         ),
         colors = CardDefaults.cardColors(
-            containerColor = if (isEnhanced)
-                Constants.Colors.Primary.copy(alpha = 0.2f)
-            else
-                Constants.Colors.Surface
+            containerColor = Constants.Colors.Surface  // 统一使用灰色背景
         ),
         shape = RoundedCornerShape(Constants.Dimensions.CORNER_RADIUS_SMALL.dp)
     ) {
@@ -1904,9 +1937,9 @@ fun StatusItem(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = value,
-                color = if (isPositive) Constants.Colors.Success else Constants.Colors.Error,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
+                color = if (isPositive) Constants.Colors.Primary else Constants.Colors.OnSurfaceVariant,
+                fontSize = 12.sp,
+                fontWeight = if (isPositive) FontWeight.Bold else FontWeight.Normal
             )
         }
     }

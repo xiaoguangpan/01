@@ -199,11 +199,38 @@ object ShizukuStatusMonitor {
      */
     private fun isShizukuRunning(): Boolean {
         return try {
-            val isRunning = Shizuku.pingBinder()
-            Log.d(TAG, "🔍 Shizuku运行状态检测: ${if (isRunning) "运行中" else "未运行"}")
+            Log.d(TAG, "🔍 开始检测Shizuku运行状态...")
+
+            // 方法1：使用pingBinder检测
+            val pingResult = Shizuku.pingBinder()
+            Log.d(TAG, "🔍 Shizuku.pingBinder()结果: $pingResult")
+
+            // 方法2：检查Binder是否可用
+            val binderAvailable = try {
+                Shizuku.getBinder() != null
+            } catch (e: Exception) {
+                Log.d(TAG, "🔍 Shizuku.getBinder()失败: ${e.message}")
+                false
+            }
+            Log.d(TAG, "🔍 Shizuku Binder可用性: $binderAvailable")
+
+            // 方法3：检查版本信息
+            val versionCheck = try {
+                val version = Shizuku.getVersion()
+                Log.d(TAG, "🔍 Shizuku版本检测: $version")
+                version > 0
+            } catch (e: Exception) {
+                Log.d(TAG, "🔍 Shizuku版本检测失败: ${e.message}")
+                false
+            }
+
+            val isRunning = pingResult && binderAvailable
+            Log.d(TAG, "🔍 Shizuku运行状态最终结果: ${if (isRunning) "运行中" else "未运行"}")
+            Log.d(TAG, "🔍 检测详情: ping=$pingResult, binder=$binderAvailable, version=$versionCheck")
+
             isRunning
         } catch (e: Exception) {
-            Log.d(TAG, "🔍 Shizuku运行状态检测失败: ${e.message}")
+            Log.e(TAG, "🔍 Shizuku运行状态检测异常: ${e.message}", e)
             false
         }
     }
