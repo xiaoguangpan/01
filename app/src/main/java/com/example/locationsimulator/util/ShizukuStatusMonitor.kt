@@ -142,29 +142,45 @@ object ShizukuStatusMonitor {
      * 检查Shizuku是否已安装
      */
     private fun isShizukuInstalled(context: Context? = null): Boolean {
-        return try {
-            // 方法1：尝试通过Shizuku API检查版本
-            val version = Shizuku.getVersion()
-            Log.d(TAG, "🔍 Shizuku API检测: 版本 $version")
-            version > 0
-        } catch (e: Exception) {
-            Log.d(TAG, "🔍 Shizuku API检测失败: ${e.message}")
+        Log.d(TAG, "🔍 开始检测Shizuku安装状态...")
 
-            // 方法2：通过PackageManager检查包是否已安装
-            if (context != null) {
+        // 方法1：通过PackageManager检查包是否已安装（优先使用，更可靠）
+        if (context != null) {
+            val shizukuPackages = listOf(
+                "moe.shizuku.privileged.api",  // Shizuku主包名
+                "rikka.shizuku.privileged.api", // 备选包名
+                "moe.shizuku.manager"  // Shizuku管理器包名
+            )
+
+            for (packageName in shizukuPackages) {
                 try {
                     val packageManager = context.packageManager
-                    packageManager.getPackageInfo("moe.shizuku.privileged.api", 0)
-                    Log.d(TAG, "🔍 PackageManager检测: Shizuku已安装")
-                    true
+                    val packageInfo = packageManager.getPackageInfo(packageName, 0)
+                    Log.d(TAG, "🔍 PackageManager检测: 找到Shizuku包 $packageName, 版本: ${packageInfo.versionName}")
+                    return true
                 } catch (packageException: Exception) {
-                    Log.d(TAG, "🔍 PackageManager检测: Shizuku未安装 - ${packageException.message}")
-                    false
+                    Log.d(TAG, "🔍 PackageManager检测: 包 $packageName 未找到")
                 }
+            }
+            Log.d(TAG, "🔍 PackageManager检测: 所有Shizuku包都未找到")
+        } else {
+            Log.w(TAG, "🔍 无Context可用，跳过PackageManager检测")
+        }
+
+        // 方法2：尝试通过Shizuku API检查版本（作为备选）
+        return try {
+            val version = Shizuku.getVersion()
+            Log.d(TAG, "🔍 Shizuku API检测: 版本 $version")
+            if (version > 0) {
+                Log.d(TAG, "🔍 通过API检测到Shizuku已安装")
+                true
             } else {
-                Log.w(TAG, "🔍 无Context可用，无法进行PackageManager检测")
+                Log.d(TAG, "🔍 API返回版本号无效: $version")
                 false
             }
+        } catch (e: Exception) {
+            Log.d(TAG, "🔍 Shizuku API检测失败: ${e.message}")
+            false
         }
     }
     

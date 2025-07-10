@@ -50,7 +50,9 @@ object UnifiedMockLocationManager {
      * Fallback Mode: Shizuku模式 (系统级权限，需要增强模式开启)
      */
     fun start(context: Context, latitude: Double, longitude: Double, enableShizukuMode: Boolean = false): MockLocationResult {
-        Log.d(TAG, "🚀 简化模拟定位启动: $latitude, $longitude")
+        Log.d(TAG, "🚀 启动模拟定位系统")
+        Log.d(TAG, "📍 目标坐标: $latitude, $longitude")
+        Log.d(TAG, "🔧 Shizuku增强模式: ${if (enableShizukuMode) "已开启" else "已关闭"}")
 
         stop(context) // 先停止之前的模拟
 
@@ -58,9 +60,13 @@ object UnifiedMockLocationManager {
         currentLongitude = longitude
 
         // 检查基础权限状态
+        Log.d(TAG, "🔍 开始检查基础权限状态...")
         val standardStatus = StandardMockLocationManager.checkMockLocationPermissions(context)
+        Log.d(TAG, "📊 基础权限检查结果: ${standardStatus.message}")
+
         if (standardStatus != MockLocationStatus.READY) {
-            Log.w(TAG, "⚠️ 基础权限不满足: ${standardStatus.message}")
+            Log.w(TAG, "⚠️ 基础权限不满足，无法启动模拟定位")
+            Log.w(TAG, "💡 将显示设置指导但不会自动跳转到系统设置")
             return MockLocationResult.Failure(standardStatus, getSetupInstructions(context, standardStatus))
         }
 

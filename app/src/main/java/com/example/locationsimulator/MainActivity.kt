@@ -236,17 +236,20 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         // 如果距离上次点击超过3秒，重置计数
         if (currentTime - lastShizukuClickTime > 3000) {
             shizukuClickCount = 0
+            addDebugMessage("🔄 Shizuku增强模式点击计数已重置")
         }
 
         shizukuClickCount++
         lastShizukuClickTime = currentTime
 
+        addDebugMessage("🔢 Shizuku增强模式点击: ${shizukuClickCount}/5 (当前状态: ${if (isShizukuEnhancedModeEnabled) "已开启" else "已关闭"})")
+
         if (shizukuClickCount >= 5) {
+            val previousState = isShizukuEnhancedModeEnabled
             isShizukuEnhancedModeEnabled = !isShizukuEnhancedModeEnabled
             shizukuClickCount = 0
-            addDebugMessage("🚀 Shizuku增强模式${if (isShizukuEnhancedModeEnabled) "已开启" else "已关闭"}")
-        } else {
-            addDebugMessage("🔢 Shizuku增强模式切换: ${shizukuClickCount}/5")
+            addDebugMessage("🚀 Shizuku增强模式状态变更: $previousState -> $isShizukuEnhancedModeEnabled")
+            addDebugMessage("💡 ${if (isShizukuEnhancedModeEnabled) "增强模式已开启，Shizuku将参与模拟定位流程" else "增强模式已关闭，仅使用标准模拟定位"}")
         }
     }
 
@@ -1410,13 +1413,14 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
             addDebugMessage("🔧 ${instruction.title}")
             addDebugMessage("📝 ${instruction.description}")
             if (instruction.action != null) {
-                addDebugMessage("💡 点击下方按钮可直接跳转到设置页面")
+                addDebugMessage("💡 如需要可手动前往系统设置页面进行配置")
             }
         }
         addDebugMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-        // 自动执行第一个可执行的操作
-        instructions.firstOrNull { it.action != null }?.action?.invoke()
+        // 不自动执行操作，避免强制跳转到系统设置页面
+        // 让用户根据调试信息手动决定是否需要进行系统设置
+        addDebugMessage("💡 提示：应用不会自动跳转到系统设置，请根据上述说明手动检查配置")
     }
 
     override fun onCleared() {
