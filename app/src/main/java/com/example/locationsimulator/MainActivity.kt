@@ -252,6 +252,11 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
             shizukuClickCount = 0
             addDebugMessage("🚀 Shizuku增强模式状态变更: $previousState -> $isShizukuEnhancedModeEnabled")
             addDebugMessage("💡 ${if (isShizukuEnhancedModeEnabled) "增强模式已开启，Shizuku将参与模拟定位流程" else "增强模式已关闭，仅使用标准模拟定位"}")
+
+            // 如果开启增强模式，立即检查Shizuku状态
+            if (isShizukuEnhancedModeEnabled) {
+                checkAndShowShizukuStatus(this)
+            }
         }
     }
 

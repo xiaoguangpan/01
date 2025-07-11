@@ -68,6 +68,52 @@ object UnifiedMockLocationManager {
             Log.w(TAG, "⚠️ 基础权限检查未通过，但仍将尝试启动模拟定位")
         }
 
+        // Priority Mode: Shizuku增强模式 (增强模式开启时优先尝试)
+        if (enableShizukuMode) {
+            Log.d(TAG, "🔧 Shizuku增强模式已开启，优先尝试Shizuku模式...")
+            val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus(context)
+            Log.d(TAG, "🔧 Shizuku状态检查结果: ${shizukuStatus.name} - ${shizukuStatus.message}")
+
+            when (shizukuStatus) {
+                ShizukuStatus.READY -> {
+                    Log.d(TAG, "🚀 Shizuku状态就绪，尝试启动Shizuku增强模式")
+                    try {
+                        if (MockLocationManager.start(context, latitude, longitude)) {
+                            currentStrategy = MockLocationStrategy.SHIZUKU
+                            isRunning = true
+                            startMonitoring(context)
+                            Log.d(TAG, "✅ 成功使用Shizuku增强模式启动模拟定位")
+                            return MockLocationResult.Success(MockLocationStrategy.SHIZUKU)
+                        } else {
+                            Log.w(TAG, "⚠️ Shizuku增强模式启动失败，将继续尝试其他模式")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ Shizuku增强模式启动异常: ${e.message}", e)
+                    }
+                }
+                ShizukuStatus.NO_PERMISSION -> {
+                    Log.w(TAG, "🔐 Shizuku已安装但需要授权，已请求权限")
+                    Log.w(TAG, "💡 增强模式已开启，但Shizuku需要授权才能使用")
+                    ShizukuStatusMonitor.requestShizukuPermission()
+                    retryShizukuMode = true
+                }
+                ShizukuStatus.NOT_RUNNING -> {
+                    Log.w(TAG, "⚠️ Shizuku已安装但未启动")
+                    Log.w(TAG, "💡 增强模式已开启，但Shizuku服务未运行")
+                    Log.w(TAG, "💡 请启动Shizuku应用并开启服务，然后重试模拟定位")
+                }
+                ShizukuStatus.NOT_INSTALLED -> {
+                    Log.w(TAG, "⚠️ 增强模式已开启但Shizuku未安装")
+                    Log.w(TAG, "💡 请安装Shizuku应用以使用增强功能，或关闭增强模式使用标准功能")
+                    Log.w(TAG, "💡 将继续使用标准模式进行模拟定位")
+                }
+                ShizukuStatus.ERROR -> {
+                    Log.w(TAG, "⚠️ Shizuku状态检测出错")
+                    Log.w(TAG, "💡 增强模式已开启，但Shizuku状态异常，将使用标准模式")
+                }
+            }
+        }
+
         // Primary Mode: 高级反检测模式 (默认使用最强方法)
         Log.d(TAG, "🛡️ 尝试高级反检测模式 (Primary Mode)")
         if (AntiDetectionMockLocationManager.startAntiDetection(context, latitude, longitude)) {
@@ -91,56 +137,7 @@ object UnifiedMockLocationManager {
             Log.w(TAG, "⚠️ 标准模式失败: $standardError")
         }
 
-        // Fallback Mode: Shizuku模式 (仅在增强模式开启时尝试)
-        val shizukuStatus = if (enableShizukuMode) {
-            Log.d(TAG, "🔧 Shizuku增强模式已开启，开始检查Shizuku状态...")
-            val status = ShizukuStatusMonitor.getCurrentShizukuStatus(context)
-            Log.d(TAG, "🔧 Shizuku状态检查结果: ${status.name} - ${status.message}")
-            Log.d(TAG, "🔧 准备尝试Shizuku模式...")
 
-            when (status) {
-                ShizukuStatus.READY -> {
-                    Log.d(TAG, "🚀 Shizuku状态就绪，尝试启动Shizuku模式")
-                    try {
-                        if (MockLocationManager.start(context, latitude, longitude)) {
-                            currentStrategy = MockLocationStrategy.SHIZUKU
-                            isRunning = true
-                            startMonitoring(context)
-                            Log.d(TAG, "✅ 成功使用Shizuku模式启动模拟定位")
-                            return MockLocationResult.Success(MockLocationStrategy.SHIZUKU)
-                        } else {
-                            Log.w(TAG, "⚠️ Shizuku模式启动失败，将继续尝试其他模式")
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "❌ Shizuku模式启动异常: ${e.message}", e)
-                    }
-                }
-                ShizukuStatus.NO_PERMISSION -> {
-                    // 请求权限并标记稍后重试
-                    ShizukuStatusMonitor.requestShizukuPermission()
-                    retryShizukuMode = true
-                    Log.w(TAG, "🔐 Shizuku已安装但需要授权，已请求权限")
-                }
-                ShizukuStatus.NOT_RUNNING -> {
-                    Log.w(TAG, "⚠️ Shizuku已安装但未启动")
-                    Log.w(TAG, "💡 请启动Shizuku应用并开启服务，然后重试模拟定位")
-                }
-                ShizukuStatus.NOT_INSTALLED -> {
-                    Log.w(TAG, "⚠️ 增强模式已开启但Shizuku未安装")
-                    Log.w(TAG, "💡 请安装Shizuku应用以使用增强功能，或关闭增强模式使用标准功能")
-                }
-                ShizukuStatus.ERROR -> {
-                    Log.w(TAG, "⚠️ Shizuku状态检测出错")
-                }
-                else -> {
-                    Log.w(TAG, "Shizuku不可用: ${status.message}")
-                }
-            }
-            status
-        } else {
-            Log.d(TAG, "🔧 Shizuku增强模式未开启，跳过Shizuku模式")
-            ShizukuStatusMonitor.getCurrentShizukuStatus(context)
-        }
 
         // 三种模式都失败，提供设置指导
         Log.e(TAG, "❌ 所有模拟定位模式都失败")
