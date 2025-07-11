@@ -171,20 +171,21 @@ object ShizukuStatusMonitor {
      * 检查Shizuku是否已安装
      */
     private fun isShizukuInstalled(context: Context? = null): Boolean {
-        Log.d(TAG, "🔍 ===== 第1步：检测Shizuku安装状态 =====")
+        return try {
+            Log.d(TAG, "🔍 ===== 第1步：检测Shizuku安装状态 =====")
 
-        // 首先尝试最直接的API检测方法
-        Log.d(TAG, "🔍 优先尝试: Shizuku API直接检测")
-        try {
-            val apiDetected = tryShizukuApiDetection()
-            if (apiDetected) {
-                Log.d(TAG, "🔍 ✅ Shizuku API检测成功: Shizuku已安装")
-                Log.d(TAG, "🔍 ===== 安装检测结果: 已安装 (API优先) =====")
-                return true
+            // 首先尝试最直接的API检测方法
+            Log.d(TAG, "🔍 优先尝试: Shizuku API直接检测")
+            try {
+                val apiDetected = tryShizukuApiDetection()
+                if (apiDetected) {
+                    Log.d(TAG, "🔍 ✅ Shizuku API检测成功: Shizuku已安装")
+                    Log.d(TAG, "🔍 ===== 安装检测结果: 已安装 (API优先) =====")
+                    return true
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "🔍 API优先检测异常: ${e.javaClass.simpleName} - ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "🔍 API优先检测异常: ${e.message}")
-        }
 
         // 方法1：通过PackageManager检查包是否已安装
         if (context != null) {
@@ -253,11 +254,17 @@ object ShizukuStatusMonitor {
             return true
         }
 
-        // 最终结论：未安装
-        Log.d(TAG, "🔍 ❌ 所有检测方法都未找到Shizuku应用")
-        Log.d(TAG, "🔍 详细信息: 请检查Shizuku是否正确安装，包名是否为moe.shizuku.privileged.api")
-        Log.d(TAG, "🔍 ===== 安装检测结果: 未安装 =====")
-        return false
+            // 最终结论：未安装
+            Log.d(TAG, "🔍 ❌ 所有检测方法都未找到Shizuku应用")
+            Log.d(TAG, "🔍 详细信息: 请检查Shizuku是否正确安装，包名是否为moe.shizuku.privileged.api")
+            Log.d(TAG, "🔍 ===== 安装检测结果: 未安装 =====")
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "🔍 ❌ 安装检测过程发生异常: ${e.javaClass.simpleName} - ${e.message}", e)
+            Log.d(TAG, "🔍 异常堆栈: ${e.stackTraceToString()}")
+            Log.d(TAG, "🔍 ===== 安装检测结果: 异常导致检测失败 =====")
+            false
+        }
     }
 
     /**
@@ -323,16 +330,17 @@ object ShizukuStatusMonitor {
      * 备选检测方案：通过Shizuku API直接检测
      */
     private fun tryShizukuApiDetection(): Boolean {
-        Log.d(TAG, "🔍 开始Shizuku API检测...")
+        return try {
+            Log.d(TAG, "🔍 开始Shizuku API检测...")
 
-        // 方法1：尝试获取版本号
-        try {
-            val version = Shizuku.getVersion()
-            Log.d(TAG, "🔍 ✅ Shizuku.getVersion()成功: 版本 $version")
-            return true
-        } catch (e: Exception) {
-            Log.d(TAG, "🔍 Shizuku.getVersion()失败: ${e.javaClass.simpleName} - ${e.message}")
-        }
+            // 方法1：尝试获取版本号
+            try {
+                val version = Shizuku.getVersion()
+                Log.d(TAG, "🔍 ✅ Shizuku.getVersion()成功: 版本 $version")
+                return true
+            } catch (e: Exception) {
+                Log.d(TAG, "🔍 Shizuku.getVersion()失败: ${e.javaClass.simpleName} - ${e.message}")
+            }
 
         // 方法2：尝试检查Binder可用性
         try {
@@ -370,13 +378,18 @@ object ShizukuStatusMonitor {
             Log.d(TAG, "🔍 Shizuku.getUid()失败: ${e.javaClass.simpleName} - ${e.message}")
         }
 
-        // 分析异常类型，判断是否已安装
-        Log.d(TAG, "🔍 所有API方法都失败，分析可能原因:")
-        Log.d(TAG, "🔍 - 如果是RuntimeException且包含'not running'，说明已安装但未运行")
-        Log.d(TAG, "🔍 - 如果是UnsatisfiedLinkError或NoClassDefFoundError，说明未安装")
-        Log.d(TAG, "🔍 - 其他异常可能是权限或状态问题")
+            // 分析异常类型，判断是否已安装
+            Log.d(TAG, "🔍 所有API方法都失败，分析可能原因:")
+            Log.d(TAG, "🔍 - 如果是RuntimeException且包含'not running'，说明已安装但未运行")
+            Log.d(TAG, "🔍 - 如果是UnsatisfiedLinkError或NoClassDefFoundError，说明未安装")
+            Log.d(TAG, "🔍 - 其他异常可能是权限或状态问题")
 
-        return false
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "🔍 ❌ Shizuku API检测过程发生严重异常: ${e.javaClass.simpleName} - ${e.message}", e)
+            Log.d(TAG, "🔍 异常堆栈: ${e.stackTraceToString()}")
+            false
+        }
     }
 
     /**
