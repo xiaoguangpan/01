@@ -1698,6 +1698,15 @@ class MainActivity : ComponentActivity() {
         try {
             viewModel.addDebugMessage("🔧 开始初始化Shizuku连接...")
 
+            // 检查Shizuku类是否可用
+            try {
+                val shizukuClass = rikka.shizuku.Shizuku::class.java
+                viewModel.addDebugMessage("🔧 ✅ Shizuku类加载成功")
+            } catch (e: Exception) {
+                viewModel.addDebugMessage("🔧 ❌ Shizuku类加载失败: ${e.message}")
+                return
+            }
+
             // 添加Shizuku Binder接收监听器
             val binderReceivedListener = object : rikka.shizuku.Shizuku.OnBinderReceivedListener {
                 override fun onBinderReceived() {
@@ -1719,23 +1728,32 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // 注册监听器
-            rikka.shizuku.Shizuku.addBinderReceivedListener(binderReceivedListener)
-            rikka.shizuku.Shizuku.addBinderDeadListener(binderDeadListener)
+            // 注册监听器（安全方式）
+            try {
+                rikka.shizuku.Shizuku.addBinderReceivedListener(binderReceivedListener)
+                rikka.shizuku.Shizuku.addBinderDeadListener(binderDeadListener)
+                viewModel.addDebugMessage("🔧 ✅ Shizuku监听器注册完成")
+            } catch (e: Exception) {
+                viewModel.addDebugMessage("🔧 ❌ Shizuku监听器注册失败: ${e.message}")
+                return
+            }
 
-            viewModel.addDebugMessage("🔧 ✅ Shizuku监听器注册完成")
-
-            // 检查是否已经有Binder连接
-            if (rikka.shizuku.Shizuku.getBinder() != null) {
-                viewModel.addDebugMessage("🔧 ✅ Shizuku Binder已存在，连接正常")
-                try {
-                    val version = rikka.shizuku.Shizuku.getVersion()
-                    viewModel.addDebugMessage("🔧 ✅ 当前Shizuku版本: $version")
-                } catch (e: Exception) {
-                    viewModel.addDebugMessage("🔧 ⚠️ Shizuku版本检测失败: ${e.message}")
+            // 检查是否已经有Binder连接（安全方式）
+            try {
+                val binder = rikka.shizuku.Shizuku.getBinder()
+                if (binder != null) {
+                    viewModel.addDebugMessage("🔧 ✅ Shizuku Binder已存在，连接正常")
+                    try {
+                        val version = rikka.shizuku.Shizuku.getVersion()
+                        viewModel.addDebugMessage("🔧 ✅ 当前Shizuku版本: $version")
+                    } catch (e: Exception) {
+                        viewModel.addDebugMessage("🔧 ⚠️ Shizuku版本检测失败: ${e.message}")
+                    }
+                } else {
+                    viewModel.addDebugMessage("🔧 ⚠️ Shizuku Binder尚未连接，等待连接...")
                 }
-            } else {
-                viewModel.addDebugMessage("🔧 ⚠️ Shizuku Binder尚未连接，等待连接...")
+            } catch (e: Exception) {
+                viewModel.addDebugMessage("🔧 ⚠️ Shizuku Binder检查失败: ${e.message}")
             }
 
         } catch (e: Exception) {
