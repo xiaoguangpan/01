@@ -255,6 +255,26 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 addDebugMessage("🔍 用户尝试开启Shizuku增强模式，开始状态检测...")
                 val contextToUse = context ?: application
 
+                // 首先测试Shizuku类是否可用
+                addDebugMessage("🔍 测试Shizuku依赖是否正确导入...")
+                try {
+                    val shizukuClass = rikka.shizuku.Shizuku::class.java
+                    addDebugMessage("🔍 ✅ Shizuku类加载成功: ${shizukuClass.name}")
+
+                    // 测试基本API调用
+                    try {
+                        val version = rikka.shizuku.Shizuku.getVersion()
+                        addDebugMessage("🔍 ✅ Shizuku.getVersion()成功: 版本 $version")
+                        addDebugMessage("🔍 这说明Shizuku已安装且可访问")
+                    } catch (apiException: Exception) {
+                        addDebugMessage("🔍 ⚠️ Shizuku.getVersion()失败: ${apiException.javaClass.simpleName} - ${apiException.message}")
+                        addDebugMessage("🔍 这可能说明Shizuku未安装或未运行")
+                    }
+                } catch (classException: Exception) {
+                    addDebugMessage("🔍 ❌ Shizuku类加载失败: ${classException.javaClass.simpleName} - ${classException.message}")
+                    addDebugMessage("🔍 这说明Shizuku依赖没有正确包含在APK中")
+                }
+
                 // 使用强制刷新，忽略缓存
                 addDebugMessage("🔄 强制刷新Shizuku状态（忽略缓存）...")
                 val shizukuStatus = ShizukuStatusMonitor.forceRefreshStatus()
