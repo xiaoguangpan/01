@@ -223,21 +223,34 @@ object ShizukuStatusMonitor {
                 return true
             }
 
-            if (!hasQueryAllPackagesPermission) {
-                Log.d(TAG, "🔍 PackageManager检测失败可能是由于缺少QUERY_ALL_PACKAGES权限，尝试备选方案")
+            // 无论是否有QUERY_ALL_PACKAGES权限，都尝试备选方案
+            Log.d(TAG, "🔍 PackageManager检测未找到Shizuku，尝试备选检测方案")
 
-                // 备选方案：通过Intent查询检测Shizuku
-                Log.d(TAG, "🔍 尝试备选检测方案: Intent查询")
-                if (tryIntentBasedDetection(context)) {
-                    Log.d(TAG, "🔍 ✅ Intent检测成功: Shizuku已安装")
-                    Log.d(TAG, "🔍 ===== 安装检测结果: 已安装 (Intent) =====")
-                    return true
-                }
-            } else {
-                Log.d(TAG, "🔍 PackageManager检测: 所有Shizuku包都未找到")
+            // 备选方案1：通过Intent查询检测Shizuku
+            Log.d(TAG, "🔍 尝试备选检测方案1: Intent查询")
+            if (tryIntentBasedDetection(context)) {
+                Log.d(TAG, "🔍 ✅ Intent检测成功: Shizuku已安装")
+                Log.d(TAG, "🔍 ===== 安装检测结果: 已安装 (Intent) =====")
+                return true
             }
+
+            // 备选方案2：通过Shizuku API直接检测
+            Log.d(TAG, "🔍 尝试备选检测方案2: Shizuku API检测")
+            if (tryShizukuApiDetection()) {
+                Log.d(TAG, "🔍 ✅ Shizuku API检测成功: Shizuku已安装")
+                Log.d(TAG, "🔍 ===== 安装检测结果: 已安装 (API) =====")
+                return true
+            }
+
+            Log.d(TAG, "🔍 所有检测方法都未找到Shizuku应用")
         } else {
-            Log.w(TAG, "🔍 无Context可用，跳过PackageManager检测")
+            Log.w(TAG, "🔍 无Context可用，尝试Shizuku API检测")
+            // 没有Context时，尝试API检测
+            if (tryShizukuApiDetection()) {
+                Log.d(TAG, "🔍 ✅ Shizuku API检测成功: Shizuku已安装")
+                Log.d(TAG, "🔍 ===== 安装检测结果: 已安装 (API) =====")
+                return true
+            }
         }
 
         // 最终结论：未安装
@@ -277,6 +290,42 @@ object ShizukuStatusMonitor {
         } catch (e: Exception) {
             Log.w(TAG, "🔍 Intent检测异常: ${e.message}")
             false
+        }
+    }
+
+    /**
+     * 备选检测方案：通过Shizuku API直接检测
+     */
+    private fun tryShizukuApiDetection(): Boolean {
+        return try {
+            Log.d(TAG, "🔍 尝试通过Shizuku API检测安装状态")
+
+            // 尝试调用Shizuku API，如果能调用说明已安装
+            val version = Shizuku.getVersion()
+            Log.d(TAG, "🔍 Shizuku API检测: 获取到版本号 $version")
+            true
+        } catch (e: Exception) {
+            when (e) {
+                is java.lang.UnsatisfiedLinkError -> {
+                    Log.d(TAG, "🔍 Shizuku API检测: 未安装 - UnsatisfiedLinkError")
+                }
+                is java.lang.NoClassDefFoundError -> {
+                    Log.d(TAG, "🔍 Shizuku API检测: 未安装 - NoClassDefFoundError")
+                }
+                is RuntimeException -> {
+                    if (e.message?.contains("not running") == true || e.message?.contains("dead") == true) {
+                        Log.d(TAG, "🔍 Shizuku API检测: 已安装但未运行 - ${e.message}")
+                        true // 已安装，只是未运行
+                    } else {
+                        Log.d(TAG, "🔍 Shizuku API检测: 可能未安装 - ${e.message}")
+                        false
+                    }
+                }
+                else -> {
+                    Log.d(TAG, "🔍 Shizuku API检测: 异常 - ${e.javaClass.simpleName}: ${e.message}")
+                    false
+                }
+            }
         }
     }
 
