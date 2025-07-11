@@ -24,15 +24,32 @@ object MockLocationManager {
     private var isRunning = false
 
     fun start(context: Context, lat: Double, lng: Double): Boolean {
-        Log.d(TAG, "🚀 开始设置模拟定位: $lat, $lng")
+        Log.d(TAG, "🚀 开始设置Shizuku增强模式模拟定位: $lat, $lng")
 
-        if (Shizuku.checkSelfPermission() != Constants.RequestCodes.SHIZUKU_PERMISSION) {
-            Log.w(TAG, "❌ Shizuku权限不足，无法启动")
+        // 检查Shizuku权限（正确的权限检查方式）
+        if (Shizuku.checkSelfPermission() != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "❌ Shizuku权限不足，无法启动增强模式")
+            Log.w(TAG, "💡 当前权限状态: ${Shizuku.checkSelfPermission()}")
             return false
         }
 
+        Log.d(TAG, "✅ Shizuku权限检查通过")
+
         // 确保先停止之前的任务
         stop(context)
+
+        // 首先添加测试提供者
+        Log.d(TAG, "🔧 添加测试提供者...")
+        try {
+            ALL_PROVIDERS.forEach { provider ->
+                addTestProviderForProvider(context, provider)
+                enableTestProviderForProvider(context, provider, true)
+            }
+            Log.d(TAG, "✅ 测试提供者添加完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 添加测试提供者失败: ${e.message}", e)
+            return false
+        }
 
         synchronized(this) {
             if (isRunning) {
@@ -65,12 +82,45 @@ object MockLocationManager {
         return true
     }
 
+    private fun addTestProviderForProvider(context: Context, provider: String) {
+        try {
+            if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
+                val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                locationManager.addTestProvider(provider, false, false, false, false, true, true, true, 1, 1)
+            } else {
+                ShizukuManager.addTestProvider(provider)
+            }
+            Log.d(TAG, "✅ 添加测试提供者成功: $provider")
+        } catch (e: Exception) {
+            Log.w(TAG, "添加测试提供者失败 $provider: ${e.message}")
+            throw e
+        }
+    }
+
+    private fun enableTestProviderForProvider(context: Context, provider: String, enabled: Boolean) {
+        try {
+            if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
+                val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                locationManager.setTestProviderEnabled(provider, enabled)
+            } else {
+                ShizukuManager.setProviderEnabled(provider, enabled)
+            }
+            Log.d(TAG, "✅ 设置测试提供者状态成功: $provider = $enabled")
+        } catch (e: Exception) {
+            Log.w(TAG, "设置测试提供者状态失败 $provider: ${e.message}")
+        }
+    }
+
     private fun setLocationForProvider(context: Context, provider: String, location: Location) {
-        if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
-            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            locationManager.setTestProviderLocation(provider, location)
-        } else {
-            ShizukuManager.setMockLocation(location)
+        try {
+            if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
+                val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                locationManager.setTestProviderLocation(provider, location)
+            } else {
+                ShizukuManager.setMockLocation(location)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "设置模拟位置失败 $provider: ${e.message}")
         }
     }
 
@@ -93,10 +143,19 @@ object MockLocationManager {
         }
 
         try {
+            Log.d(TAG, "🔧 清理测试提供者...")
             ALL_PROVIDERS.forEach { provider ->
+                // 先禁用提供者
+                try {
+                    enableTestProviderForProvider(context, provider, false)
+                } catch (e: Exception) {
+                    Log.w(TAG, "禁用测试提供者失败 $provider: ${e.message}")
+                }
+
+                // 然后移除提供者
                 removeTestProviderForProvider(context, provider)
             }
-            Log.d(TAG, "🛑 模拟定位已停止")
+            Log.d(TAG, "🛑 Shizuku增强模式模拟定位已停止")
         } catch (e: Exception) {
             Log.e(TAG, "❌ 停止模拟定位失败: ${e.message}", e)
         }

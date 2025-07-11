@@ -59,13 +59,27 @@ object UnifiedMockLocationManager {
         currentLatitude = latitude
         currentLongitude = longitude
 
-        // 检查基础权限状态（仅作为参考，不阻止尝试）
+        // 检查基础权限状态（必须通过才能继续）
         Log.d(TAG, "🔍 开始检查基础权限状态...")
         val standardStatus = StandardMockLocationManager.checkMockLocationPermissions(context)
         Log.d(TAG, "📊 基础权限检查结果: ${standardStatus.message}")
 
+        // 检查模拟定位应用选择状态
+        Log.d(TAG, "🔍 检查模拟定位应用选择状态...")
+        val isMockAppSelected = checkMockLocationAppSelected(context)
+        Log.d(TAG, "📊 模拟定位应用选择状态: ${if (isMockAppSelected) "已选择" else "未选择"}")
+
         if (standardStatus != MockLocationStatus.READY) {
-            Log.w(TAG, "⚠️ 基础权限检查未通过，但仍将尝试启动模拟定位")
+            Log.e(TAG, "❌ 基础权限检查未通过，无法启动模拟定位")
+            return MockLocationResult.Failure(standardStatus, getSetupInstructions(context, standardStatus))
+        }
+
+        if (!isMockAppSelected) {
+            Log.e(TAG, "❌ 当前应用未被选择为模拟定位应用")
+            return MockLocationResult.Failure(
+                MockLocationStatus.MOCK_APP_NOT_SELECTED,
+                getSetupInstructions(context, MockLocationStatus.MOCK_APP_NOT_SELECTED)
+            )
         }
 
         // 获取Shizuku状态（用于错误报告）
@@ -483,6 +497,49 @@ object UnifiedMockLocationManager {
             }
         } catch (e: Exception) {
             Log.e(TAG, "打开Shizuku应用失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 检查当前应用是否被选择为模拟定位应用
+     */
+    private fun checkMockLocationAppSelected(context: Context): Boolean {
+        return try {
+            // 方法1：检查Settings.Secure.ALLOW_MOCK_LOCATION（Android 6.0以下）
+            val allowMockLocation = try {
+                Settings.Secure.getInt(context.contentResolver, Settings.Secure.ALLOW_MOCK_LOCATION, 0) == 1
+            } catch (e: Exception) {
+                false
+            }
+
+            // 方法2：尝试创建测试提供者来验证（Android 6.0+）
+            val canCreateTestProvider = try {
+                val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+                val testProvider = "test_provider_${System.currentTimeMillis()}"
+
+                // 尝试添加测试提供者
+                locationManager.addTestProvider(
+                    testProvider,
+                    false, false, false, false, true, true, true, 1, 1
+                )
+
+                // 如果成功，立即移除
+                locationManager.removeTestProvider(testProvider)
+                true
+            } catch (e: SecurityException) {
+                Log.d(TAG, "🔍 无法创建测试提供者: ${e.message}")
+                false
+            } catch (e: Exception) {
+                Log.d(TAG, "🔍 测试提供者检查异常: ${e.message}")
+                false
+            }
+
+            val result = allowMockLocation || canCreateTestProvider
+            Log.d(TAG, "🔍 模拟定位应用检查: allowMockLocation=$allowMockLocation, canCreateTestProvider=$canCreateTestProvider, 结果=$result")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "检查模拟定位应用选择状态失败: ${e.message}", e)
+            false
         }
     }
 
