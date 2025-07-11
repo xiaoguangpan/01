@@ -147,6 +147,20 @@ object ShizukuStatusMonitor {
 
         // 方法1：通过PackageManager检查包是否已安装（优先使用，更可靠）
         if (context != null) {
+            // 检查QUERY_ALL_PACKAGES权限状态
+            val hasQueryAllPackagesPermission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                try {
+                    context.checkSelfPermission(android.Manifest.permission.QUERY_ALL_PACKAGES) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                } catch (e: Exception) {
+                    Log.w(TAG, "🔍 检查QUERY_ALL_PACKAGES权限失败: ${e.message}")
+                    false
+                }
+            } else {
+                true // Android 11以下不需要此权限
+            }
+
+            Log.d(TAG, "🔍 QUERY_ALL_PACKAGES权限状态: ${if (hasQueryAllPackagesPermission) "已授予" else "未授予"}")
+
             val shizukuPackages = listOf(
                 "moe.shizuku.privileged.api",  // Shizuku主包名
                 "rikka.shizuku.privileged.api", // 备选包名
@@ -173,7 +187,12 @@ object ShizukuStatusMonitor {
                     }
                 }
             }
-            Log.d(TAG, "🔍 PackageManager检测: 所有Shizuku包都未找到或权限不足")
+
+            if (!hasQueryAllPackagesPermission) {
+                Log.d(TAG, "🔍 PackageManager检测失败可能是由于缺少QUERY_ALL_PACKAGES权限")
+            } else {
+                Log.d(TAG, "🔍 PackageManager检测: 所有Shizuku包都未找到")
+            }
 
             // 备选方案：通过Intent查询检测Shizuku
             Log.d(TAG, "🔍 尝试备选检测方案: Intent查询")
