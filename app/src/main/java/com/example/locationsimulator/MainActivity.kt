@@ -232,7 +232,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     }
 
     // 5次点击切换Shizuku增强模式
-    fun handleShizukuEnhancedModeToggle() {
+    fun handleShizukuEnhancedModeToggle(context: Context? = null) {
         val currentTime = System.currentTimeMillis()
 
         // 如果距离上次点击超过3秒，重置计数
@@ -252,16 +252,39 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
             // 如果要开启增强模式，先检查Shizuku状态
             if (!previousState) {
                 // 要开启增强模式，先检查状态
-                val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus(application)
-                addDebugMessage("🔍 检查Shizuku状态: ${shizukuStatus.name} - ${shizukuStatus.message}")
+                addDebugMessage("🔍 用户尝试开启Shizuku增强模式，开始状态检测...")
+                val contextToUse = context ?: application
+                val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus(contextToUse)
+                addDebugMessage("🔍 Shizuku状态检测完成: ${shizukuStatus.name} - ${shizukuStatus.message}")
 
-                // 无论什么状态都允许开启增强模式，但会显示相应提示
-                isShizukuEnhancedModeEnabled = true
+                // 根据Shizuku状态决定增强模式状态
+                when (shizukuStatus) {
+                    ShizukuStatus.READY -> {
+                        isShizukuEnhancedModeEnabled = true
+                        addDebugMessage("🚀 ✅ Shizuku增强模式已开启 - Shizuku完全就绪")
+                    }
+                    ShizukuStatus.NOT_INSTALLED -> {
+                        isShizukuEnhancedModeEnabled = false
+                        addDebugMessage("🚀 ❌ 无法开启增强模式 - Shizuku未安装")
+                    }
+                    ShizukuStatus.NOT_RUNNING -> {
+                        isShizukuEnhancedModeEnabled = false
+                        addDebugMessage("🚀 ❌ 无法开启增强模式 - Shizuku未运行")
+                    }
+                    ShizukuStatus.NO_PERMISSION -> {
+                        isShizukuEnhancedModeEnabled = false
+                        addDebugMessage("🚀 ❌ 无法开启增强模式 - Shizuku未授权")
+                    }
+                    ShizukuStatus.ERROR -> {
+                        isShizukuEnhancedModeEnabled = false
+                        addDebugMessage("🚀 ❌ 无法开启增强模式 - Shizuku状态检测异常")
+                    }
+                }
+
                 shizukuClickCount = 0
-                addDebugMessage("🚀 Shizuku增强模式已开启")
 
                 // 立即显示状态提示
-                checkAndShowShizukuStatus(application)
+                checkAndShowShizukuStatus(contextToUse)
             } else {
                 // 关闭增强模式
                 isShizukuEnhancedModeEnabled = false
@@ -1463,10 +1486,12 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
      * 检查并显示Shizuku状态详细信息，并弹出用户友好的状态提示
      */
     private fun checkAndShowShizukuStatus(context: Context) {
-        val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus(context)
         addDebugMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         addDebugMessage("🔧 增强模式状态检查:")
-        addDebugMessage("📱 增强模式: 已开启")
+        addDebugMessage("📱 增强模式状态: ${if (isShizukuEnhancedModeEnabled) "已开启" else "已关闭"}")
+
+        // 获取最新的Shizuku状态（避免重复检测）
+        val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus(context)
         addDebugMessage("📦 Shizuku状态: ${shizukuStatus.name} - ${shizukuStatus.message}")
 
         // 弹出明确的状态提示
@@ -1500,30 +1525,34 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
      * 显示Shizuku状态对话框
      */
     private fun showShizukuStatusDialog(context: Context, status: ShizukuStatus) {
+        addDebugMessage("🔔 准备显示Shizuku状态对话框...")
+        addDebugMessage("🔔 Context类型: ${context.javaClass.simpleName}")
+        addDebugMessage("🔔 Shizuku状态: ${status.name}")
+
         val (title, message, actionText) = when (status) {
             ShizukuStatus.NOT_INSTALLED -> Triple(
                 "Shizuku未安装",
-                "未安装Shizuku，请先安装Shizuku应用以使用增强模式功能。",
+                "未检测到Shizuku应用。要使用增强模式功能，请先安装Shizuku应用。\n\n增强模式已自动关闭，您仍可使用标准模拟定位功能。",
                 "去下载"
             )
             ShizukuStatus.NOT_RUNNING -> Triple(
                 "Shizuku未启动",
-                "Shizuku已安装但未启动，请先开启Shizuku服务。",
+                "Shizuku已安装但未启动。要使用增强模式功能，请先开启Shizuku服务。\n\n增强模式已自动关闭，您仍可使用标准模拟定位功能。",
                 "去启动"
             )
             ShizukuStatus.NO_PERMISSION -> Triple(
                 "需要授权",
-                "Shizuku已安装且运行，但需要授权本应用才能使用增强功能。",
+                "Shizuku已安装且运行，但需要授权本应用才能使用增强功能。\n\n增强模式已自动关闭，您仍可使用标准模拟定位功能。",
                 "去授权"
             )
             ShizukuStatus.READY -> Triple(
                 "增强模式就绪",
-                "Shizuku增强模式已就绪，可以使用系统级模拟定位功能。",
+                "🎉 Shizuku增强模式已成功开启！\n\n现在可以使用系统级模拟定位功能，具有更强的兼容性和反检测能力。",
                 "确定"
             )
             ShizukuStatus.ERROR -> Triple(
                 "检测异常",
-                "Shizuku状态检测出现异常，请检查Shizuku安装和权限状态。",
+                "Shizuku状态检测出现异常，请检查Shizuku安装和权限状态。\n\n增强模式已自动关闭，您仍可使用标准模拟定位功能。",
                 "确定"
             )
         }
@@ -1531,10 +1560,30 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         // 使用Handler在主线程中显示对话框
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             try {
-                if (context is android.app.Activity && !context.isFinishing) {
-                    addDebugMessage("🔔 显示Shizuku状态对话框: $title")
+                // 尝试获取正确的Activity Context
+                val activityContext = when {
+                    context is android.app.Activity -> {
+                        addDebugMessage("🔔 使用传入的Activity Context")
+                        context
+                    }
+                    context is android.content.ContextWrapper -> {
+                        addDebugMessage("🔔 尝试从ContextWrapper获取Activity")
+                        var baseContext = context.baseContext
+                        while (baseContext is android.content.ContextWrapper && baseContext !is android.app.Activity) {
+                            baseContext = baseContext.baseContext
+                        }
+                        baseContext as? android.app.Activity
+                    }
+                    else -> {
+                        addDebugMessage("🔔 Context类型不匹配，尝试获取Application Context")
+                        null
+                    }
+                }
 
-                    android.app.AlertDialog.Builder(context)
+                if (activityContext != null && !activityContext.isFinishing && !activityContext.isDestroyed) {
+                    addDebugMessage("🔔 ✅ 成功获取有效Activity Context，显示对话框: $title")
+
+                    android.app.AlertDialog.Builder(activityContext)
                         .setTitle(title)
                         .setMessage(message)
                         .setPositiveButton(actionText) { _, _ ->
@@ -1544,7 +1593,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                                     try {
                                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
                                         intent.data = android.net.Uri.parse("https://github.com/RikkaApps/Shizuku/releases")
-                                        context.startActivity(intent)
+                                        activityContext.startActivity(intent)
                                         addDebugMessage("📱 已打开Shizuku下载页面")
                                     } catch (e: Exception) {
                                         addDebugMessage("❌ 无法打开下载页面: ${e.message}")
@@ -1553,9 +1602,9 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                                 ShizukuStatus.NOT_RUNNING, ShizukuStatus.NO_PERMISSION -> {
                                     // 尝试打开Shizuku应用
                                     try {
-                                        val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
+                                        val intent = activityContext.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
                                         if (intent != null) {
-                                            context.startActivity(intent)
+                                            activityContext.startActivity(intent)
                                             addDebugMessage("📱 已打开Shizuku应用")
                                         } else {
                                             addDebugMessage("❌ 无法找到Shizuku应用")
@@ -1576,10 +1625,18 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         .setCancelable(true)
                         .show()
                 } else {
-                    addDebugMessage("❌ 无法显示对话框: Context不可用或Activity已结束")
+                    val reason = when {
+                        activityContext == null -> "无法获取有效的Activity Context"
+                        activityContext.isFinishing -> "Activity正在结束"
+                        activityContext.isDestroyed -> "Activity已被销毁"
+                        else -> "未知原因"
+                    }
+                    addDebugMessage("❌ 无法显示对话框: $reason")
+                    addDebugMessage("💡 状态信息已记录在调试日志中，请查看上方的状态检测结果")
                 }
             } catch (e: Exception) {
-                addDebugMessage("❌ 显示对话框失败: ${e.message}")
+                addDebugMessage("❌ 显示对话框异常: ${e.message}")
+                addDebugMessage("💡 状态信息已记录在调试日志中，请查看上方的状态检测结果")
             }
         }
     }
@@ -2071,7 +2128,7 @@ fun OptimizedStatusBar(viewModel: MainViewModel) {
                 },
                 isPositive = viewModel.isShizukuEnhancedModeEnabled,
                 modifier = Modifier.weight(1f),
-                onClick = { viewModel.handleShizukuEnhancedModeToggle() },
+                onClick = { viewModel.handleShizukuEnhancedModeToggle(context) },
                 isEnhanced = false  // 不使用背景色变化
             )
         }
