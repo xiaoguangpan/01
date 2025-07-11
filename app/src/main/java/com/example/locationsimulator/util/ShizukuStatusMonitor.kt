@@ -180,29 +180,20 @@ object ShizukuStatusMonitor {
         return try {
             Log.d(TAG, "🔍 ===== 第1步：检测Shizuku安装状态 =====")
 
-            // 首先测试Shizuku类是否可用
-            Log.d(TAG, "🔍 测试Shizuku类可用性...")
+            // 方法1：检查Binder是否可用（最可靠的方法）
+            Log.d(TAG, "🔍 方法1: 检查Shizuku Binder状态...")
             try {
-                val shizukuClass = Shizuku::class.java
-                Log.d(TAG, "🔍 ✅ Shizuku类加载成功: ${shizukuClass.name}")
-            } catch (e: Exception) {
-                Log.e(TAG, "🔍 ❌ Shizuku类加载失败: ${e.javaClass.simpleName} - ${e.message}")
-                Log.d(TAG, "🔍 这说明Shizuku依赖可能没有正确包含在APK中")
-                return false
-            }
-
-            // 然后尝试最直接的API检测方法
-            Log.d(TAG, "🔍 优先尝试: Shizuku API直接检测")
-            try {
-                val apiDetected = tryShizukuApiDetection()
-                if (apiDetected) {
-                    Log.d(TAG, "🔍 ✅ Shizuku API检测成功: Shizuku已安装")
-                    Log.d(TAG, "🔍 ===== 安装检测结果: 已安装 (API优先) =====")
+                val binder = Shizuku.getBinder()
+                if (binder != null && binder.isBinderAlive) {
+                    Log.d(TAG, "🔍 ✅ Shizuku Binder存在且活跃，说明已安装并运行")
                     return true
+                } else if (binder != null) {
+                    Log.d(TAG, "🔍 ⚠️ Shizuku Binder存在但不活跃")
+                } else {
+                    Log.d(TAG, "🔍 ⚠️ Shizuku Binder不存在")
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "🔍 API优先检测异常: ${e.javaClass.simpleName} - ${e.message}")
-                Log.w(TAG, "🔍 异常详情: ${e.stackTraceToString()}")
+                Log.d(TAG, "🔍 Binder检查异常: ${e.javaClass.simpleName} - ${e.message}")
             }
 
         // 方法1：通过PackageManager检查包是否已安装
@@ -412,81 +403,83 @@ object ShizukuStatusMonitor {
 
     /**
      * 检查Shizuku是否正在运行
+     * 根据官方文档，正确的检查方式是验证Binder连接状态
      */
     private fun isShizukuRunning(): Boolean {
         return try {
             Log.d(TAG, "🔍 ===== 第2步：检测Shizuku运行状态 =====")
 
-            // 方法1：使用pingBinder检测
+            // 方法1：检查Binder是否存在且活跃
+            val binder = try {
+                Shizuku.getBinder()
+            } catch (e: Exception) {
+                Log.d(TAG, "🔍 获取Binder失败: ${e.javaClass.simpleName} - ${e.message}")
+                null
+            }
+
+            if (binder == null) {
+                Log.d(TAG, "🔍 ❌ Shizuku Binder不存在，说明未运行")
+                return false
+            }
+
+            // 检查Binder是否活跃
+            val isAlive = try {
+                binder.isBinderAlive
+            } catch (e: Exception) {
+                Log.d(TAG, "🔍 检查Binder活跃状态失败: ${e.message}")
+                false
+            }
+
+            if (!isAlive) {
+                Log.d(TAG, "🔍 ❌ Shizuku Binder存在但不活跃，说明服务已停止")
+                return false
+            }
+
+            Log.d(TAG, "🔍 ✅ Shizuku Binder存在且活跃")
+
+            // 方法2：尝试ping测试
             val pingResult = try {
                 Shizuku.pingBinder()
             } catch (e: Exception) {
-                Log.d(TAG, "🔍 Shizuku.pingBinder()异常: ${e.message}")
+                Log.d(TAG, "🔍 Ping测试异常: ${e.message}")
                 false
             }
-            Log.d(TAG, "🔍 Shizuku.pingBinder()结果: $pingResult")
+            Log.d(TAG, "🔍 Ping测试结果: $pingResult")
 
-            // 方法2：检查Binder是否可用
-            val binderAvailable = try {
-                val binder = Shizuku.getBinder()
-                val available = binder != null
-                Log.d(TAG, "🔍 Shizuku.getBinder()结果: ${if (available) "可用" else "null"}")
-                available
-            } catch (e: Exception) {
-                Log.d(TAG, "🔍 Shizuku.getBinder()异常: ${e.message}")
-                false
-            }
-
-            // 方法3：检查版本信息
+            // 方法3：尝试获取版本信息（最终验证）
             val versionCheck = try {
                 val version = Shizuku.getVersion()
-                Log.d(TAG, "🔍 Shizuku.getVersion()结果: $version")
-                version > 0
+                Log.d(TAG, "🔍 ✅ Shizuku.getVersion()成功: $version")
+                true
             } catch (e: Exception) {
-                Log.d(TAG, "🔍 Shizuku.getVersion()异常: ${e.message}")
+                Log.d(TAG, "🔍 Shizuku.getVersion()失败: ${e.javaClass.simpleName} - ${e.message}")
                 false
             }
 
-            // 方法4：检查服务状态（新增）
-            val serviceCheck = try {
-                val uid = Shizuku.getUid()
-                Log.d(TAG, "🔍 Shizuku.getUid()结果: $uid")
-                uid > 0
-            } catch (e: Exception) {
-                Log.d(TAG, "🔍 Shizuku.getUid()异常: ${e.message}")
-                false
-            }
+            // 综合判断：Binder活跃是最重要的指标
+            val isRunning = isAlive && (pingResult || versionCheck)
 
-            // 修改判断逻辑：任何一个方法成功都认为Shizuku在运行
-            // 这样可以处理不同启动方式（ADB、无线调试等）的兼容性问题
-            val isRunning = pingResult || binderAvailable || versionCheck || serviceCheck
-
-            // 详细记录每个检测方法的结果
-            Log.d(TAG, "🔍 ===== 详细检测结果分析 =====")
-            Log.d(TAG, "🔍 方法1 - pingBinder(): $pingResult")
-            Log.d(TAG, "🔍 方法2 - getBinder(): $binderAvailable")
-            Log.d(TAG, "🔍 方法3 - getVersion(): $versionCheck")
-            Log.d(TAG, "🔍 方法4 - getUid(): $serviceCheck")
-            Log.d(TAG, "🔍 综合判断逻辑: $pingResult || $binderAvailable || $versionCheck || $serviceCheck = $isRunning")
+            Log.d(TAG, "🔍 ===== 运行状态检测结果 =====")
+            Log.d(TAG, "🔍 Binder存在: ${binder != null}")
+            Log.d(TAG, "🔍 Binder活跃: $isAlive")
+            Log.d(TAG, "🔍 Ping测试: $pingResult")
+            Log.d(TAG, "🔍 版本检测: $versionCheck")
+            Log.d(TAG, "🔍 最终判断: $isRunning")
 
             if (isRunning) {
-                Log.d(TAG, "🔍 ✅ Shizuku运行状态: 正在运行")
-                val successMethods = mutableListOf<String>()
-                if (pingResult) successMethods.add("pingBinder")
-                if (binderAvailable) successMethods.add("getBinder")
-                if (versionCheck) successMethods.add("getVersion")
-                if (serviceCheck) successMethods.add("getUid")
-                Log.d(TAG, "🔍 成功的检测方法: ${successMethods.joinToString(", ")}")
+                Log.d(TAG, "🔍 ✅ Shizuku正在运行且可访问")
             } else {
-                Log.d(TAG, "🔍 ❌ Shizuku运行状态: 未运行")
-                Log.d(TAG, "🔍 所有检测方法都失败，可能原因:")
-                Log.d(TAG, "🔍   - Shizuku服务未启动")
-                Log.d(TAG, "🔍   - ADB连接问题")
-                Log.d(TAG, "🔍   - 权限不足")
-                Log.d(TAG, "🔍   - Shizuku版本不兼容")
+                Log.d(TAG, "🔍 ❌ Shizuku未运行或不可访问")
+                if (binder == null) {
+                    Log.d(TAG, "🔍 原因: Binder连接不存在")
+                } else if (!isAlive) {
+                    Log.d(TAG, "🔍 原因: Binder连接已死亡")
+                } else {
+                    Log.d(TAG, "🔍 原因: API调用失败")
+                }
             }
-            Log.d(TAG, "🔍 ===== 运行状态检测结果: ${if (isRunning) "运行中" else "未运行"} =====")
 
+            Log.d(TAG, "🔍 ===== 运行状态检测结果: ${if (isRunning) "运行中" else "未运行"} =====")
             isRunning
         } catch (e: Exception) {
             Log.e(TAG, "🔍 ❌ Shizuku运行状态检测异常: ${e.message}", e)
