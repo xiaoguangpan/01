@@ -105,6 +105,25 @@ object ShizukuStatusMonitor {
             statusChangeCallback?.invoke(currentStatus)
         }
     }
+
+    /**
+     * 强制刷新状态（忽略缓存）
+     */
+    fun forceRefreshStatus(): ShizukuStatus {
+        Log.d(TAG, "🔄 强制刷新Shizuku状态（忽略缓存）")
+        val currentStatus = getCurrentShizukuStatus(monitoringContext)
+
+        // 强制更新缓存状态
+        if (currentStatus != lastShizukuStatus) {
+            Log.d(TAG, "📊 强制刷新发现状态变化: ${lastShizukuStatus.message} → ${currentStatus.message}")
+            lastShizukuStatus = currentStatus
+            statusChangeCallback?.invoke(currentStatus)
+        } else {
+            Log.d(TAG, "📊 强制刷新状态无变化: ${currentStatus.message}")
+        }
+
+        return currentStatus
+    }
     
     /**
      * 获取当前Shizuku状态
@@ -312,12 +331,29 @@ object ShizukuStatusMonitor {
             // 这样可以处理不同启动方式（ADB、无线调试等）的兼容性问题
             val isRunning = pingResult || binderAvailable || versionCheck || serviceCheck
 
+            // 详细记录每个检测方法的结果
+            Log.d(TAG, "🔍 ===== 详细检测结果分析 =====")
+            Log.d(TAG, "🔍 方法1 - pingBinder(): $pingResult")
+            Log.d(TAG, "🔍 方法2 - getBinder(): $binderAvailable")
+            Log.d(TAG, "🔍 方法3 - getVersion(): $versionCheck")
+            Log.d(TAG, "🔍 方法4 - getUid(): $serviceCheck")
+            Log.d(TAG, "🔍 综合判断逻辑: $pingResult || $binderAvailable || $versionCheck || $serviceCheck = $isRunning")
+
             if (isRunning) {
                 Log.d(TAG, "🔍 ✅ Shizuku运行状态: 正在运行")
-                Log.d(TAG, "🔍 成功的检测方法: ping=$pingResult, binder=$binderAvailable, version=$versionCheck, service=$serviceCheck")
+                val successMethods = mutableListOf<String>()
+                if (pingResult) successMethods.add("pingBinder")
+                if (binderAvailable) successMethods.add("getBinder")
+                if (versionCheck) successMethods.add("getVersion")
+                if (serviceCheck) successMethods.add("getUid")
+                Log.d(TAG, "🔍 成功的检测方法: ${successMethods.joinToString(", ")}")
             } else {
                 Log.d(TAG, "🔍 ❌ Shizuku运行状态: 未运行")
-                Log.d(TAG, "🔍 所有检测方法都失败: ping=$pingResult, binder=$binderAvailable, version=$versionCheck, service=$serviceCheck")
+                Log.d(TAG, "🔍 所有检测方法都失败，可能原因:")
+                Log.d(TAG, "🔍   - Shizuku服务未启动")
+                Log.d(TAG, "🔍   - ADB连接问题")
+                Log.d(TAG, "🔍   - 权限不足")
+                Log.d(TAG, "🔍   - Shizuku版本不兼容")
             }
             Log.d(TAG, "🔍 ===== 运行状态检测结果: ${if (isRunning) "运行中" else "未运行"} =====")
 

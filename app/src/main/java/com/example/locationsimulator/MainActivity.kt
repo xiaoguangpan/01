@@ -254,7 +254,10 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 // 要开启增强模式，先检查状态
                 addDebugMessage("🔍 用户尝试开启Shizuku增强模式，开始状态检测...")
                 val contextToUse = context ?: application
-                val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus(contextToUse)
+
+                // 使用强制刷新，忽略缓存
+                addDebugMessage("🔄 强制刷新Shizuku状态（忽略缓存）...")
+                val shizukuStatus = ShizukuStatusMonitor.forceRefreshStatus()
                 addDebugMessage("🔍 Shizuku状态检测完成: ${shizukuStatus.name} - ${shizukuStatus.message}")
 
                 // 根据Shizuku状态决定增强模式状态
@@ -1490,8 +1493,9 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         addDebugMessage("🔧 增强模式状态检查:")
         addDebugMessage("📱 增强模式状态: ${if (isShizukuEnhancedModeEnabled) "已开启" else "已关闭"}")
 
-        // 获取最新的Shizuku状态（避免重复检测）
-        val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus(context)
+        // 强制刷新Shizuku状态（忽略缓存）
+        addDebugMessage("🔄 强制刷新Shizuku状态...")
+        val shizukuStatus = ShizukuStatusMonitor.forceRefreshStatus()
         addDebugMessage("📦 Shizuku状态: ${shizukuStatus.name} - ${shizukuStatus.message}")
 
         // 弹出明确的状态提示
