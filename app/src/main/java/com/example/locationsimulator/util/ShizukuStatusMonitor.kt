@@ -302,8 +302,9 @@ object ShizukuStatusMonitor {
     private fun hasShizukuPermission(): Boolean {
         return try {
             val permission = Shizuku.checkSelfPermission()
-            val hasPermission = permission == Constants.RequestCodes.SHIZUKU_PERMISSION
+            val hasPermission = permission == android.content.pm.PackageManager.PERMISSION_GRANTED
             Log.d(TAG, "🔍 Shizuku权限检测: 权限码=$permission, 是否有权限=$hasPermission")
+            Log.d(TAG, "🔍 权限检测详情: PERMISSION_GRANTED=${android.content.pm.PackageManager.PERMISSION_GRANTED}")
             hasPermission
         } catch (e: Exception) {
             Log.d(TAG, "🔍 Shizuku权限检测失败: ${e.message}")

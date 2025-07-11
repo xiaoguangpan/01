@@ -248,14 +248,25 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
         if (shizukuClickCount >= 5) {
             val previousState = isShizukuEnhancedModeEnabled
-            isShizukuEnhancedModeEnabled = !isShizukuEnhancedModeEnabled
-            shizukuClickCount = 0
-            addDebugMessage("🚀 Shizuku增强模式状态变更: $previousState -> $isShizukuEnhancedModeEnabled")
-            addDebugMessage("💡 ${if (isShizukuEnhancedModeEnabled) "增强模式已开启，Shizuku将参与模拟定位流程" else "增强模式已关闭，仅使用标准模拟定位"}")
 
-            // 如果开启增强模式，立即检查Shizuku状态
-            if (isShizukuEnhancedModeEnabled) {
+            // 如果要开启增强模式，先检查Shizuku状态
+            if (!previousState) {
+                // 要开启增强模式，先检查状态
+                val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus(application)
+                addDebugMessage("🔍 检查Shizuku状态: ${shizukuStatus.name} - ${shizukuStatus.message}")
+
+                // 无论什么状态都允许开启增强模式，但会显示相应提示
+                isShizukuEnhancedModeEnabled = true
+                shizukuClickCount = 0
+                addDebugMessage("🚀 Shizuku增强模式已开启")
+
+                // 立即显示状态提示
                 checkAndShowShizukuStatus(application)
+            } else {
+                // 关闭增强模式
+                isShizukuEnhancedModeEnabled = false
+                shizukuClickCount = 0
+                addDebugMessage("🚀 Shizuku增强模式已关闭，仅使用标准模拟定位")
             }
         }
     }
@@ -1519,44 +1530,56 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
         // 使用Handler在主线程中显示对话框
         android.os.Handler(android.os.Looper.getMainLooper()).post {
-            if (context is android.app.Activity) {
-                android.app.AlertDialog.Builder(context)
-                    .setTitle(title)
-                    .setMessage(message)
-                    .setPositiveButton(actionText) { _, _ ->
-                        when (status) {
-                            ShizukuStatus.NOT_INSTALLED -> {
-                                // 尝试打开应用商店或提供下载链接
-                                try {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
-                                    intent.data = android.net.Uri.parse("https://github.com/RikkaApps/Shizuku/releases")
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    addDebugMessage("无法打开下载页面: ${e.message}")
-                                }
-                            }
-                            ShizukuStatus.NOT_RUNNING, ShizukuStatus.NO_PERMISSION -> {
-                                // 尝试打开Shizuku应用
-                                try {
-                                    val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
-                                    if (intent != null) {
+            try {
+                if (context is android.app.Activity && !context.isFinishing) {
+                    addDebugMessage("🔔 显示Shizuku状态对话框: $title")
+
+                    android.app.AlertDialog.Builder(context)
+                        .setTitle(title)
+                        .setMessage(message)
+                        .setPositiveButton(actionText) { _, _ ->
+                            when (status) {
+                                ShizukuStatus.NOT_INSTALLED -> {
+                                    // 尝试打开应用商店或提供下载链接
+                                    try {
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                                        intent.data = android.net.Uri.parse("https://github.com/RikkaApps/Shizuku/releases")
                                         context.startActivity(intent)
-                                    } else {
-                                        addDebugMessage("无法打开Shizuku应用")
+                                        addDebugMessage("📱 已打开Shizuku下载页面")
+                                    } catch (e: Exception) {
+                                        addDebugMessage("❌ 无法打开下载页面: ${e.message}")
                                     }
-                                } catch (e: Exception) {
-                                    addDebugMessage("打开Shizuku应用失败: ${e.message}")
                                 }
-                            }
-                            else -> {
-                                // 其他情况不需要特殊处理
+                                ShizukuStatus.NOT_RUNNING, ShizukuStatus.NO_PERMISSION -> {
+                                    // 尝试打开Shizuku应用
+                                    try {
+                                        val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
+                                        if (intent != null) {
+                                            context.startActivity(intent)
+                                            addDebugMessage("📱 已打开Shizuku应用")
+                                        } else {
+                                            addDebugMessage("❌ 无法找到Shizuku应用")
+                                        }
+                                    } catch (e: Exception) {
+                                        addDebugMessage("❌ 打开Shizuku应用失败: ${e.message}")
+                                    }
+                                }
+                                else -> {
+                                    addDebugMessage("✅ 用户确认Shizuku状态")
+                                }
                             }
                         }
-                    }
-                    .setNegativeButton("取消") { dialog, _ ->
-                        dialog.dismiss()
-                    }
-                    .show()
+                        .setNegativeButton("取消") { dialog, _ ->
+                            addDebugMessage("❌ 用户取消Shizuku操作")
+                            dialog.dismiss()
+                        }
+                        .setCancelable(true)
+                        .show()
+                } else {
+                    addDebugMessage("❌ 无法显示对话框: Context不可用或Activity已结束")
+                }
+            } catch (e: Exception) {
+                addDebugMessage("❌ 显示对话框失败: ${e.message}")
             }
         }
     }
