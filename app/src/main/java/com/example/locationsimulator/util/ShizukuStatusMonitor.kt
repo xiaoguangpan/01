@@ -308,9 +308,11 @@ object ShizukuStatusMonitor {
             when (e) {
                 is java.lang.UnsatisfiedLinkError -> {
                     Log.d(TAG, "🔍 Shizuku API检测: 未安装 - UnsatisfiedLinkError")
+                    false
                 }
                 is java.lang.NoClassDefFoundError -> {
                     Log.d(TAG, "🔍 Shizuku API检测: 未安装 - NoClassDefFoundError")
+                    false
                 }
                 is RuntimeException -> {
                     if (e.message?.contains("not running") == true || e.message?.contains("dead") == true) {
