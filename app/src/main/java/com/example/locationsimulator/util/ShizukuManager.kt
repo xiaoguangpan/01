@@ -28,8 +28,17 @@ object ShizukuManager {
 
     private val isShizukuAvailable: Boolean
         get() = try {
-            Shizuku.pingBinder()
+            // 使用多种方法检测Shizuku可用性，提高兼容性
+            val pingResult = try { Shizuku.pingBinder() } catch (e: Exception) { false }
+            val binderResult = try { Shizuku.getBinder() != null } catch (e: Exception) { false }
+            val versionResult = try { Shizuku.getVersion() > 0 } catch (e: Exception) { false }
+            val uidResult = try { Shizuku.getUid() > 0 } catch (e: Exception) { false }
+
+            val available = pingResult || binderResult || versionResult || uidResult
+            Log.d(TAG, "Shizuku可用性检测: ping=$pingResult, binder=$binderResult, version=$versionResult, uid=$uidResult, 结果=$available")
+            available
         } catch (e: Exception) {
+            Log.e(TAG, "Shizuku可用性检测异常: ${e.message}")
             false
         }
 

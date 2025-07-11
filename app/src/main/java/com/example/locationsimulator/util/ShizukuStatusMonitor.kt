@@ -269,35 +269,56 @@ object ShizukuStatusMonitor {
             Log.d(TAG, "🔍 ===== 第2步：检测Shizuku运行状态 =====")
 
             // 方法1：使用pingBinder检测
-            val pingResult = Shizuku.pingBinder()
+            val pingResult = try {
+                Shizuku.pingBinder()
+            } catch (e: Exception) {
+                Log.d(TAG, "🔍 Shizuku.pingBinder()异常: ${e.message}")
+                false
+            }
             Log.d(TAG, "🔍 Shizuku.pingBinder()结果: $pingResult")
 
             // 方法2：检查Binder是否可用
             val binderAvailable = try {
-                Shizuku.getBinder() != null
+                val binder = Shizuku.getBinder()
+                val available = binder != null
+                Log.d(TAG, "🔍 Shizuku.getBinder()结果: ${if (available) "可用" else "null"}")
+                available
             } catch (e: Exception) {
-                Log.d(TAG, "🔍 Shizuku.getBinder()失败: ${e.message}")
+                Log.d(TAG, "🔍 Shizuku.getBinder()异常: ${e.message}")
                 false
             }
-            Log.d(TAG, "🔍 Shizuku Binder可用性: $binderAvailable")
 
             // 方法3：检查版本信息
             val versionCheck = try {
                 val version = Shizuku.getVersion()
-                Log.d(TAG, "🔍 Shizuku版本检测: $version")
+                Log.d(TAG, "🔍 Shizuku.getVersion()结果: $version")
                 version > 0
             } catch (e: Exception) {
-                Log.d(TAG, "🔍 Shizuku版本检测失败: ${e.message}")
+                Log.d(TAG, "🔍 Shizuku.getVersion()异常: ${e.message}")
                 false
             }
 
-            val isRunning = pingResult && binderAvailable
+            // 方法4：检查服务状态（新增）
+            val serviceCheck = try {
+                val uid = Shizuku.getUid()
+                Log.d(TAG, "🔍 Shizuku.getUid()结果: $uid")
+                uid > 0
+            } catch (e: Exception) {
+                Log.d(TAG, "🔍 Shizuku.getUid()异常: ${e.message}")
+                false
+            }
+
+            // 修改判断逻辑：任何一个方法成功都认为Shizuku在运行
+            // 这样可以处理不同启动方式（ADB、无线调试等）的兼容性问题
+            val isRunning = pingResult || binderAvailable || versionCheck || serviceCheck
+
             if (isRunning) {
                 Log.d(TAG, "🔍 ✅ Shizuku运行状态: 正在运行")
+                Log.d(TAG, "🔍 成功的检测方法: ping=$pingResult, binder=$binderAvailable, version=$versionCheck, service=$serviceCheck")
             } else {
                 Log.d(TAG, "🔍 ❌ Shizuku运行状态: 未运行")
+                Log.d(TAG, "🔍 所有检测方法都失败: ping=$pingResult, binder=$binderAvailable, version=$versionCheck, service=$serviceCheck")
             }
-            Log.d(TAG, "🔍 检测详情: ping=$pingResult, binder=$binderAvailable, version=$versionCheck")
             Log.d(TAG, "🔍 ===== 运行状态检测结果: ${if (isRunning) "运行中" else "未运行"} =====")
 
             isRunning
