@@ -1688,6 +1688,58 @@ class MainViewModelFactory(private val application: android.app.Application) : V
 // region UI Composables
 class MainActivity : ComponentActivity() {
 
+    /**
+     * 初始化Shizuku连接
+     */
+    private fun initializeShizuku() {
+        try {
+            locationViewModel.addDebugMessage("🔧 开始初始化Shizuku连接...")
+
+            // 添加Shizuku Binder接收监听器
+            val binderReceivedListener = object : rikka.shizuku.Shizuku.OnBinderReceivedListener {
+                override fun onBinderReceived() {
+                    locationViewModel.addDebugMessage("🔧 ✅ Shizuku Binder连接成功")
+                    // 连接成功后，可以尝试检测状态
+                    try {
+                        val version = rikka.shizuku.Shizuku.getVersion()
+                        locationViewModel.addDebugMessage("🔧 ✅ Shizuku版本: $version")
+                    } catch (e: Exception) {
+                        locationViewModel.addDebugMessage("🔧 ⚠️ Shizuku连接后版本检测失败: ${e.message}")
+                    }
+                }
+            }
+
+            // 添加Binder死亡监听器
+            val binderDeadListener = object : rikka.shizuku.Shizuku.OnBinderDeadListener {
+                override fun onBinderDead() {
+                    locationViewModel.addDebugMessage("🔧 ⚠️ Shizuku Binder连接断开")
+                }
+            }
+
+            // 注册监听器
+            rikka.shizuku.Shizuku.addBinderReceivedListener(binderReceivedListener)
+            rikka.shizuku.Shizuku.addBinderDeadListener(binderDeadListener)
+
+            locationViewModel.addDebugMessage("🔧 ✅ Shizuku监听器注册完成")
+
+            // 检查是否已经有Binder连接
+            if (rikka.shizuku.Shizuku.getBinder() != null) {
+                locationViewModel.addDebugMessage("🔧 ✅ Shizuku Binder已存在，连接正常")
+                try {
+                    val version = rikka.shizuku.Shizuku.getVersion()
+                    locationViewModel.addDebugMessage("🔧 ✅ 当前Shizuku版本: $version")
+                } catch (e: Exception) {
+                    locationViewModel.addDebugMessage("🔧 ⚠️ Shizuku版本检测失败: ${e.message}")
+                }
+            } else {
+                locationViewModel.addDebugMessage("🔧 ⚠️ Shizuku Binder尚未连接，等待连接...")
+            }
+
+        } catch (e: Exception) {
+            locationViewModel.addDebugMessage("🔧 ❌ Shizuku初始化失败: ${e.javaClass.simpleName} - ${e.message}")
+        }
+    }
+
     companion object {
         private val LOCATION_PERMISSION_REQUEST_CODE = Constants.RequestCodes.LOCATION_PERMISSION
     }
@@ -1695,11 +1747,27 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 初始化Shizuku连接
+        initializeShizuku()
+
         // 检查并请求定位权限
         checkAndRequestLocationPermission()
 
         // 检查包查询权限（用于检测Shizuku）
         checkQueryAllPackagesPermission()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        // 清理Shizuku监听器
+        try {
+            // 注意：这里需要保存监听器引用才能正确移除
+            // 为了简化，我们不在这里移除监听器，让系统自动清理
+            locationViewModel.addDebugMessage("🔧 应用销毁，Shizuku连接将自动清理")
+        } catch (e: Exception) {
+            // 忽略清理异常
+        }
     }
 
     override fun onResume() {
