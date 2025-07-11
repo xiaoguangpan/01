@@ -1233,8 +1233,8 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         statusMessage = "模拟失败: ${result.status.message}"
                         addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
 
-                        // 如果增强模式开启但Shizuku不可用，给出明确提示
-                        if (isShizukuEnhancedModeEnabled) {
+                        // 只有在Shizuku相关问题时才显示Shizuku状态对话框
+                        if (isShizukuEnhancedModeEnabled && isShizukuRelatedFailure(result.status)) {
                             checkAndShowShizukuStatus(context)
                         }
 
@@ -1327,8 +1327,8 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                             is MockLocationResult.Failure -> {
                                 addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
 
-                                // 如果增强模式开启但Shizuku不可用，给出明确提示
-                                if (isShizukuEnhancedModeEnabled) {
+                                // 只有在Shizuku相关问题时才显示Shizuku状态对话框
+                                if (isShizukuEnhancedModeEnabled && isShizukuRelatedFailure(result.status)) {
                                     checkAndShowShizukuStatus(context)
                                 }
 
@@ -1443,8 +1443,8 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                     is MockLocationResult.Failure -> {
                         addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
 
-                        // 如果增强模式开启但Shizuku不可用，给出明确提示
-                        if (isShizukuEnhancedModeEnabled) {
+                        // 只有在Shizuku相关问题时才显示Shizuku状态对话框
+                        if (isShizukuEnhancedModeEnabled && isShizukuRelatedFailure(result.status)) {
                             checkAndShowShizukuStatus(context)
                         }
 
@@ -1506,6 +1506,19 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         // 不自动执行操作，避免强制跳转到系统设置页面
         // 让用户根据调试信息手动决定是否需要进行系统设置
         addDebugMessage("💡 提示：应用不会自动跳转到系统设置，请根据上述说明手动检查配置")
+    }
+
+    /**
+     * 判断失败是否与Shizuku相关
+     */
+    private fun isShizukuRelatedFailure(status: MockLocationStatus): Boolean {
+        return when (status) {
+            MockLocationStatus.MOCK_APP_NOT_SELECTED,
+            MockLocationStatus.DEVELOPER_OPTIONS_DISABLED,
+            MockLocationStatus.NO_PERMISSION,
+            MockLocationStatus.LOCATION_SERVICE_UNAVAILABLE -> false
+            MockLocationStatus.READY -> true // 如果状态是READY但仍然失败，可能是Shizuku问题
+        }
     }
 
     /**
@@ -1691,6 +1704,11 @@ class MainViewModelFactory(private val application: android.app.Application) : V
 // region UI Composables
 class MainActivity : ComponentActivity() {
 
+    // Shizuku监听器引用
+    private var binderReceivedListener: rikka.shizuku.Shizuku.OnBinderReceivedListener? = null
+    private var binderDeadListener: rikka.shizuku.Shizuku.OnBinderDeadListener? = null
+    private var permissionResultListener: rikka.shizuku.Shizuku.OnRequestPermissionResultListener? = null
+
     /**
      * 初始化Shizuku连接
      */
@@ -1708,7 +1726,7 @@ class MainActivity : ComponentActivity() {
             }
 
             // 添加Shizuku Binder接收监听器
-            val binderReceivedListener = object : rikka.shizuku.Shizuku.OnBinderReceivedListener {
+            binderReceivedListener = object : rikka.shizuku.Shizuku.OnBinderReceivedListener {
                 override fun onBinderReceived() {
                     viewModel.addDebugMessage("🔧 ✅ Shizuku Binder连接成功")
                     // 连接成功后，可以尝试检测状态
@@ -1722,17 +1740,37 @@ class MainActivity : ComponentActivity() {
             }
 
             // 添加Binder死亡监听器
-            val binderDeadListener = object : rikka.shizuku.Shizuku.OnBinderDeadListener {
+            binderDeadListener = object : rikka.shizuku.Shizuku.OnBinderDeadListener {
                 override fun onBinderDead() {
                     viewModel.addDebugMessage("🔧 ⚠️ Shizuku Binder连接断开")
                 }
             }
 
+            // 添加权限结果监听器
+            permissionResultListener = object : rikka.shizuku.Shizuku.OnRequestPermissionResultListener {
+                override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
+                    viewModel.addDebugMessage("🔧 📋 Shizuku权限结果: requestCode=$requestCode, grantResult=$grantResult")
+                    if (grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        viewModel.addDebugMessage("🔧 ✅ Shizuku权限授权成功！")
+                        viewModel.addDebugMessage("🔧 🔄 增强模式现在可用，无需重新点击5次")
+
+                        // 权限授权成功后，自动更新增强模式状态
+                        if (!isShizukuEnhancedModeEnabled) {
+                            isShizukuEnhancedModeEnabled = true
+                            viewModel.addDebugMessage("🔧 ✅ 增强模式已自动开启")
+                        }
+                    } else {
+                        viewModel.addDebugMessage("🔧 ❌ Shizuku权限授权被拒绝")
+                    }
+                }
+            }
+
             // 注册监听器（安全方式）
             try {
-                rikka.shizuku.Shizuku.addBinderReceivedListener(binderReceivedListener)
-                rikka.shizuku.Shizuku.addBinderDeadListener(binderDeadListener)
-                viewModel.addDebugMessage("🔧 ✅ Shizuku监听器注册完成")
+                binderReceivedListener?.let { rikka.shizuku.Shizuku.addBinderReceivedListener(it) }
+                binderDeadListener?.let { rikka.shizuku.Shizuku.addBinderDeadListener(it) }
+                permissionResultListener?.let { rikka.shizuku.Shizuku.addRequestPermissionResultListener(it) }
+                viewModel.addDebugMessage("🔧 ✅ Shizuku监听器注册完成（包括权限监听器）")
             } catch (e: Exception) {
                 viewModel.addDebugMessage("🔧 ❌ Shizuku监听器注册失败: ${e.message}")
                 return
@@ -1780,9 +1818,13 @@ class MainActivity : ComponentActivity() {
 
         // 清理Shizuku监听器
         try {
-            // 注意：这里需要保存监听器引用才能正确移除
-            // 为了简化，我们不在这里移除监听器，让系统自动清理
-            // locationViewModel可能已经销毁，所以不记录日志
+            binderReceivedListener?.let { rikka.shizuku.Shizuku.removeBinderReceivedListener(it) }
+            binderDeadListener?.let { rikka.shizuku.Shizuku.removeBinderDeadListener(it) }
+            permissionResultListener?.let { rikka.shizuku.Shizuku.removeRequestPermissionResultListener(it) }
+
+            binderReceivedListener = null
+            binderDeadListener = null
+            permissionResultListener = null
         } catch (e: Exception) {
             // 忽略清理异常
         }
