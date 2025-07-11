@@ -131,9 +131,13 @@ object ShizukuStatusMonitor {
     fun getCurrentShizukuStatus(context: Context? = null): ShizukuStatus {
         return try {
             Log.d(TAG, "🔍 ========== 开始完整Shizuku状态检测 ==========")
+            Log.d(TAG, "🔍 Context信息: ${context?.javaClass?.simpleName ?: "null"}")
 
             // 第1步：检查安装状态
+            Log.d(TAG, "🔍 准备调用isShizukuInstalled方法...")
             val installed = isShizukuInstalled(context)
+            Log.d(TAG, "🔍 isShizukuInstalled方法返回结果: $installed")
+
             if (!installed) {
                 Log.d(TAG, "🔍 ❌ 最终结果: NOT_INSTALLED - Shizuku应用未安装")
                 Log.d(TAG, "🔍 ========== Shizuku状态检测完成 ==========")
@@ -160,8 +164,10 @@ object ShizukuStatusMonitor {
             Log.d(TAG, "🔍 ========== Shizuku状态检测完成 ==========")
             ShizukuStatus.READY
         } catch (e: Exception) {
-            Log.e(TAG, "❌ 检查Shizuku状态失败: ${e.message}", e)
+            Log.e(TAG, "❌ 检查Shizuku状态失败: ${e.javaClass.simpleName} - ${e.message}", e)
+            Log.e(TAG, "❌ 异常堆栈: ${e.stackTraceToString()}")
             Log.d(TAG, "🔍 ❌ 最终结果: ERROR - 检测过程异常")
+            Log.d(TAG, "🔍 异常发生在getCurrentShizukuStatus方法中")
             Log.d(TAG, "🔍 ========== Shizuku状态检测完成 ==========")
             ShizukuStatus.ERROR
         }
@@ -174,7 +180,18 @@ object ShizukuStatusMonitor {
         return try {
             Log.d(TAG, "🔍 ===== 第1步：检测Shizuku安装状态 =====")
 
-            // 首先尝试最直接的API检测方法
+            // 首先测试Shizuku类是否可用
+            Log.d(TAG, "🔍 测试Shizuku类可用性...")
+            try {
+                val shizukuClass = Shizuku::class.java
+                Log.d(TAG, "🔍 ✅ Shizuku类加载成功: ${shizukuClass.name}")
+            } catch (e: Exception) {
+                Log.e(TAG, "🔍 ❌ Shizuku类加载失败: ${e.javaClass.simpleName} - ${e.message}")
+                Log.d(TAG, "🔍 这说明Shizuku依赖可能没有正确包含在APK中")
+                return false
+            }
+
+            // 然后尝试最直接的API检测方法
             Log.d(TAG, "🔍 优先尝试: Shizuku API直接检测")
             try {
                 val apiDetected = tryShizukuApiDetection()
@@ -185,6 +202,7 @@ object ShizukuStatusMonitor {
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "🔍 API优先检测异常: ${e.javaClass.simpleName} - ${e.message}")
+                Log.w(TAG, "🔍 异常详情: ${e.stackTraceToString()}")
             }
 
         // 方法1：通过PackageManager检查包是否已安装
