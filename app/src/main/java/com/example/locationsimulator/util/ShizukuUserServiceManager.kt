@@ -50,13 +50,15 @@ object ShizukuUserServiceManager {
         }
         
         try {
-            val args = UserServiceArgs(ComponentName(context, LocationMockService::class.java))
+            // 创建UserServiceArgs
+            val componentName = ComponentName(context, LocationMockService::class.java)
+            val args = UserServiceArgs(componentName)
                 .tag("LocationMockService")
                 .version(1)
 
             bindLatch = CountDownLatch(1)
 
-            // 修复bindUserService调用 - 需要传递正确的参数
+            // 调用bindUserService
             Shizuku.bindUserService(args, serviceConnection)
             Log.e(TAG, "🔗 UserService绑定请求已发送，等待连接...")
             

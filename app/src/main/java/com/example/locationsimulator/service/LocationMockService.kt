@@ -12,7 +12,7 @@ import com.example.locationsimulator.aidl.ILocationMockService
  * Shizuku UserService for location mocking
  * 运行在具有系统权限的独立进程中
  */
-class LocationMockService : ILocationMockService.Stub {
+class LocationMockService : ILocationMockService.Stub() {
     
     companion object {
         private const val TAG = "LocationMockService"
