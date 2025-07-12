@@ -3,7 +3,9 @@ package com.example.locationsimulator.util
 import android.content.Context
 import android.util.Log
 import rikka.shizuku.Shizuku
+import androidx.compose.runtime.NoLiveLiterals
 
+@NoLiveLiterals
 object MockLocationManager {
     private val TAG = Constants.LogTags.MOCK_LOCATION_MANAGER
 
@@ -33,7 +35,8 @@ object MockLocationManager {
 
         // TODO: 修复UserService API后重新启用
         // 暂时返回false，让UnifiedMockLocationManager尝试其他模式
-        return false
+        val userServiceResult = false
+        return userServiceResult
 
         /*
         return try {
@@ -42,7 +45,7 @@ object MockLocationManager {
                 Log.e(TAG, "🔗 绑定UserService...")
                 if (!ShizukuUserServiceManager.bindUserService(context)) {
                     Log.e(TAG, "❌ UserService绑定失败")
-                    return false
+                    return userServiceResult
                 }
             }
 
@@ -58,13 +61,14 @@ object MockLocationManager {
 
         } catch (e: Exception) {
             Log.e(TAG, "❌❌❌ UserService模式异常: ${e.javaClass.simpleName} - ${e.message}", e)
-            false
+            userServiceResult
         }
         */
 
         // UserService模式已经在上面处理完成
         Log.e(TAG, "🎯🎯🎯 MockLocationManager.start() 完成")
-        return true
+        val finalResult = true
+        return finalResult
     }
 
     // UserService模式下，所有提供者操作都在UserService中处理
