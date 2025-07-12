@@ -53,9 +53,10 @@ object ShizukuUserServiceManager {
             val args = UserServiceArgs(ComponentName(context, LocationMockService::class.java))
                 .tag("LocationMockService")
                 .version(1)
-            
+
             bindLatch = CountDownLatch(1)
-            
+
+            // 修复bindUserService调用 - 需要传递正确的参数
             Shizuku.bindUserService(args, serviceConnection)
             Log.e(TAG, "🔗 UserService绑定请求已发送，等待连接...")
             
@@ -84,7 +85,8 @@ object ShizukuUserServiceManager {
         
         try {
             if (isServiceBound) {
-                Shizuku.unbindUserService(serviceConnection, true)
+                // 修复unbindUserService调用
+                Shizuku.unbindUserService(serviceConnection)
                 locationMockService = null
                 isServiceBound = false
                 Log.e(TAG, "✅ UserService解绑成功")

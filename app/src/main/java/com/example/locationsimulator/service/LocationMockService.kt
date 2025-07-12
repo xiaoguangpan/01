@@ -22,20 +22,12 @@ class LocationMockService : ILocationMockService.Stub {
         )
     }
     
-    private var context: Context? = null
     private var locationManager: LocationManager? = null
     private var isRunning = false
-    
-    // 支持带Context参数的构造函数（Shizuku v13+）
-    constructor(context: Context) : this() {
-        this.context = context
-        this.locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        Log.d(TAG, "✅ LocationMockService初始化完成（带Context）")
-    }
-    
-    // 默认构造函数（兼容旧版Shizuku）
-    constructor() {
-        Log.d(TAG, "✅ LocationMockService初始化完成（默认构造函数）")
+
+    // UserService必须有无参构造函数
+    init {
+        Log.d(TAG, "✅ LocationMockService初始化完成")
     }
     
     override fun startMockLocation(latitude: Double, longitude: Double): Boolean {
@@ -43,18 +35,31 @@ class LocationMockService : ILocationMockService.Stub {
         Log.e(TAG, "📍 目标坐标: lat=$latitude, lng=$longitude")
         
         try {
-            // 如果没有Context，尝试获取系统Context
+            // 如果没有Context，尝试通过反射获取系统Context
             if (locationManager == null) {
                 Log.e(TAG, "🔧 尝试获取系统LocationManager...")
-                // 注意：在UserService中，我们有系统权限，可以直接访问系统服务
-                locationManager = android.app.ActivityThread.currentApplication()
-                    ?.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-                
+                try {
+                    // 在UserService中，我们需要通过反射获取系统服务
+                    val activityThreadClass = Class.forName("android.app.ActivityThread")
+                    val currentApplicationMethod = activityThreadClass.getMethod("currentApplication")
+                    val application = currentApplicationMethod.invoke(null) as? Context
+
+                    if (application != null) {
+                        locationManager = application.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+                        Log.e(TAG, "✅ 通过反射成功获取系统LocationManager")
+                    } else {
+                        Log.e(TAG, "❌ 无法通过反射获取Application Context")
+                        return false
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ 反射获取LocationManager失败: ${e.message}", e)
+                    return false
+                }
+
                 if (locationManager == null) {
                     Log.e(TAG, "❌ 无法获取LocationManager")
                     return false
                 }
-                Log.e(TAG, "✅ 成功获取系统LocationManager")
             }
             
             // 添加和启用测试提供者
