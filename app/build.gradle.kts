@@ -42,6 +42,11 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
+
+    // 启用AIDL支持
+    buildFeatures {
+        aidl = true
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
