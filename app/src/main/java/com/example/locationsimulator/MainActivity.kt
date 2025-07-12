@@ -74,6 +74,7 @@ import com.example.locationsimulator.util.SetupInstruction
 import com.example.locationsimulator.util.AntiDetectionMockLocationManager
 import com.example.locationsimulator.util.ShizukuStatus
 import com.example.locationsimulator.util.ShizukuStatusMonitor
+import com.example.locationsimulator.util.MockLocationStatus
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CoroutineScope
@@ -229,6 +230,20 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
             addDebugMessage("🔧 调试面板${if (isDebugPanelVisible) "显示" else "隐藏"}")
         } else {
             addDebugMessage("🔢 调试面板切换: ${debugPanelClickCount}/5")
+        }
+    }
+
+    /**
+     * 处理Shizuku权限授权成功
+     */
+    fun handleShizukuPermissionGranted() {
+        if (!isShizukuEnhancedModeEnabled) {
+            // 权限授权成功后，检查Shizuku状态并自动开启增强模式
+            val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus()
+            if (shizukuStatus == ShizukuStatus.READY) {
+                isShizukuEnhancedModeEnabled = true
+                addDebugMessage("🔧 ✅ Shizuku权限授权成功，增强模式已自动开启")
+            }
         }
     }
 
@@ -1755,10 +1770,7 @@ class MainActivity : ComponentActivity() {
                         viewModel.addDebugMessage("🔧 🔄 增强模式现在可用，无需重新点击5次")
 
                         // 权限授权成功后，自动更新增强模式状态
-                        if (!isShizukuEnhancedModeEnabled) {
-                            isShizukuEnhancedModeEnabled = true
-                            viewModel.addDebugMessage("🔧 ✅ 增强模式已自动开启")
-                        }
+                        viewModel.handleShizukuPermissionGranted()
                     } else {
                         viewModel.addDebugMessage("🔧 ❌ Shizuku权限授权被拒绝")
                     }
