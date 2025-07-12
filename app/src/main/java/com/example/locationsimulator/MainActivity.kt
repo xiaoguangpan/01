@@ -128,8 +128,8 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         "哈尔滨", "济南", "佛山", "长春", "温州", "石家庄", "南宁", "常州"
     )
 
-    // Coordinate Mode State
-    var coordinateInput by mutableStateOf("")
+    // Coordinate Mode State - 默认设置测试坐标
+    var coordinateInput by mutableStateOf("113.781601,22.739863")
         private set
 
     var currentLatitude by mutableStateOf(39.915) // 默认北京纬度 (BD09坐标系，用于地图显示)

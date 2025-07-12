@@ -24,38 +24,51 @@ object MockLocationManager {
     private var isRunning = false
 
     fun start(context: Context, lat: Double, lng: Double): Boolean {
-        Log.d(TAG, "🚀 开始设置Shizuku增强模式模拟定位: $lat, $lng")
+        Log.e(TAG, "🚀🚀🚀 MockLocationManager.start() 被调用！")
+        Log.e(TAG, "📍 目标坐标: lat=$lat, lng=$lng")
+        Log.e(TAG, "🔧 开始设置Shizuku增强模式模拟定位")
 
         // 检查Shizuku权限（正确的权限检查方式）
-        if (Shizuku.checkSelfPermission() != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            Log.w(TAG, "❌ Shizuku权限不足，无法启动增强模式")
-            Log.w(TAG, "💡 当前权限状态: ${Shizuku.checkSelfPermission()}")
+        val permissionStatus = Shizuku.checkSelfPermission()
+        Log.e(TAG, "🔐 Shizuku权限检查: $permissionStatus")
+
+        if (permissionStatus != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Log.e(TAG, "❌ Shizuku权限不足，无法启动增强模式")
+            Log.e(TAG, "💡 当前权限状态: $permissionStatus")
+            Log.e(TAG, "💡 期望状态: ${android.content.pm.PackageManager.PERMISSION_GRANTED}")
             return false
         }
 
-        Log.d(TAG, "✅ Shizuku权限检查通过")
+        Log.e(TAG, "✅ Shizuku权限检查通过，开始执行模拟定位设置")
 
         // 确保先停止之前的任务
         stop(context)
 
         // 首先添加测试提供者
-        Log.d(TAG, "🔧 添加测试提供者...")
+        Log.e(TAG, "🔧🔧🔧 开始添加测试提供者...")
+        Log.e(TAG, "📋 将要处理的提供者: $ALL_PROVIDERS")
         try {
             ALL_PROVIDERS.forEach { provider ->
+                Log.e(TAG, "🔧 正在处理提供者: $provider")
+
                 addTestProviderForProvider(context, provider)
+                Log.e(TAG, "✅ 提供者 $provider 添加完成")
+
                 enableTestProviderForProvider(context, provider, true)
+                Log.e(TAG, "✅ 提供者 $provider 启用完成")
 
                 // 关键：尝试禁用真实的位置提供者，让测试提供者优先
                 try {
                     disableRealProviderForProvider(context, provider)
+                    Log.e(TAG, "✅ 提供者 $provider 真实提供者禁用完成")
                 } catch (e: Exception) {
-                    Log.w(TAG, "⚠️ 无法禁用真实提供者 $provider: ${e.message}")
+                    Log.e(TAG, "⚠️ 无法禁用真实提供者 $provider: ${e.message}")
                     // 不抛出异常，因为这不是致命错误
                 }
             }
-            Log.d(TAG, "✅ 测试提供者添加完成")
+            Log.e(TAG, "✅✅✅ 所有测试提供者添加完成")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ 添加测试提供者失败: ${e.message}", e)
+            Log.e(TAG, "❌❌❌ 添加测试提供者失败: ${e.message}", e)
             return false
         }
 
@@ -76,24 +89,27 @@ object MockLocationManager {
                 if (!isRunning) return@scheduleAtFixedRate
 
                 try {
-                    Log.d(TAG, "🔄 更新模拟位置: $lat, $lng")
+                    Log.e(TAG, "🔄🔄🔄 更新模拟位置: lat=$lat, lng=$lng")
                     var successCount = 0
                     var failureCount = 0
 
                     ALL_PROVIDERS.forEach { provider ->
                         try {
+                            Log.e(TAG, "🔧 为提供者 $provider 创建位置对象")
                             val location = createLocation(provider, lat, lng)
+                            Log.e(TAG, "🔧 为提供者 $provider 设置位置: ${location.latitude}, ${location.longitude}")
                             setLocationForProvider(context, provider, location)
                             successCount++
+                            Log.e(TAG, "✅ 提供者 $provider 位置设置成功")
                         } catch (e: Exception) {
-                            Log.e(TAG, "❌ 提供者 $provider 位置设置失败: ${e.message}")
+                            Log.e(TAG, "❌ 提供者 $provider 位置设置失败: ${e.javaClass.simpleName} - ${e.message}")
                             failureCount++
                         }
                     }
 
-                    Log.d(TAG, "📊 位置更新结果: 成功=$successCount, 失败=$failureCount")
+                    Log.e(TAG, "📊📊📊 位置更新结果: 成功=$successCount, 失败=$failureCount")
                 } catch (e: Exception) {
-                    Log.e(TAG, "❌ 模拟位置更新循环异常: ${e.message}", e)
+                    Log.e(TAG, "❌❌❌ 模拟位置更新循环异常: ${e.message}", e)
                 }
             }, 0, Constants.Timing.LOCATION_UPDATE_INTERVAL, TimeUnit.MILLISECONDS)
         }
