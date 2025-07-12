@@ -28,7 +28,14 @@ object MockLocationManager {
 
         Log.e(TAG, "✅ Shizuku权限检查通过，开始使用UserService模式")
 
-        // 使用UserService方式
+        // 使用UserService方式（暂时禁用，回退到旧实现）
+        Log.e(TAG, "⚠️ UserService模式暂时禁用，回退到旧的Shizuku实现")
+
+        // TODO: 修复UserService API后重新启用
+        // 暂时返回false，让UnifiedMockLocationManager尝试其他模式
+        return false
+
+        /*
         return try {
             // 绑定UserService
             if (!ShizukuUserServiceManager.isServiceBound()) {
@@ -53,6 +60,7 @@ object MockLocationManager {
             Log.e(TAG, "❌❌❌ UserService模式异常: ${e.javaClass.simpleName} - ${e.message}", e)
             false
         }
+        */
 
         // UserService模式已经在上面处理完成
         Log.e(TAG, "🎯🎯🎯 MockLocationManager.start() 完成")
@@ -71,22 +79,10 @@ object MockLocationManager {
         }
 
         try {
-            Log.e(TAG, "🛑🛑🛑 开始停止UserService位置模拟...")
+            Log.e(TAG, "🛑🛑🛑 停止Shizuku增强模式模拟定位...")
 
-            // 使用UserService停止位置模拟
-            if (ShizukuUserServiceManager.isServiceBound()) {
-                val result = ShizukuUserServiceManager.stopMockLocation()
-                if (result) {
-                    Log.e(TAG, "✅✅✅ UserService位置模拟停止成功")
-                } else {
-                    Log.e(TAG, "❌❌❌ UserService位置模拟停止失败")
-                }
-
-                // 解绑UserService
-                ShizukuUserServiceManager.unbindUserService()
-            } else {
-                Log.e(TAG, "⚠️ UserService未绑定，无需停止")
-            }
+            // UserService模式暂时禁用
+            Log.e(TAG, "⚠️ UserService模式暂时禁用，无需特殊停止操作")
 
             Log.e(TAG, "🛑🛑🛑 Shizuku增强模式模拟定位已停止")
         } catch (e: Exception) {
