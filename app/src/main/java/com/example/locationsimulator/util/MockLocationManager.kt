@@ -28,15 +28,26 @@ object MockLocationManager {
             return false
         }
 
-        Log.e(TAG, "✅ Shizuku权限检查通过，开始使用UserService模式")
+        Log.e(TAG, "✅ Shizuku权限检查通过，开始使用增强模式")
 
-        // 使用UserService方式（暂时禁用，回退到旧实现）
-        Log.e(TAG, "⚠️ UserService模式暂时禁用，回退到旧的Shizuku实现")
+        // 暂时使用旧的Shizuku实现，而不是UserService
+        Log.e(TAG, "🔧 使用Shizuku增强模式（旧实现）")
 
-        // TODO: 修复UserService API后重新启用
-        // 暂时返回false，让UnifiedMockLocationManager尝试其他模式
-        val userServiceResult = false
-        return userServiceResult
+        return try {
+            // 使用旧的Shizuku实现进行位置模拟
+            val result = startShizukuMockLocation(context, lat, lng)
+            if (result) {
+                isRunning = true
+                Log.e(TAG, "🎯🎯🎯 Shizuku增强模式启动成功！")
+            } else {
+                Log.e(TAG, "❌❌❌ Shizuku增强模式启动失败")
+            }
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "❌❌❌ Shizuku增强模式异常: ${e.javaClass.simpleName} - ${e.message}", e)
+            val fallbackResult = false
+            fallbackResult
+        }
 
         /*
         return try {
@@ -71,6 +82,67 @@ object MockLocationManager {
         return finalResult
     }
 
+    /**
+     * 使用旧的Shizuku实现进行位置模拟
+     */
+    private fun startShizukuMockLocation(context: Context, lat: Double, lng: Double): Boolean {
+        Log.e(TAG, "🔧 开始Shizuku增强模式位置模拟...")
+
+        return try {
+            // 使用Shizuku权限添加测试提供者
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+            // 为所有提供者添加测试提供者
+            val providers = listOf(
+                LocationManager.GPS_PROVIDER,
+                LocationManager.NETWORK_PROVIDER,
+                LocationManager.PASSIVE_PROVIDER
+            )
+
+            var successCount = 0
+            for (provider in providers) {
+                try {
+                    // 使用Shizuku权限调用系统API
+                    locationManager.addTestProvider(
+                        provider,
+                        false, false, false, false, false, true, true,
+                        android.location.Criteria.POWER_LOW,
+                        android.location.Criteria.ACCURACY_FINE
+                    )
+                    locationManager.setTestProviderEnabled(provider, true)
+
+                    // 创建位置对象
+                    val location = android.location.Location(provider).apply {
+                        latitude = lat
+                        longitude = lng
+                        accuracy = 1.0f
+                        time = System.currentTimeMillis()
+                        elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+                    }
+
+                    locationManager.setTestProviderLocation(provider, location)
+                    successCount++
+                    Log.e(TAG, "✅ Shizuku增强模式: $provider 提供者设置成功")
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Shizuku增强模式: $provider 提供者设置失败: ${e.message}")
+                }
+            }
+
+            val success = successCount > 0
+            if (success) {
+                Log.e(TAG, "🎯 Shizuku增强模式: 成功设置 $successCount/$providers.size 个提供者")
+            } else {
+                Log.e(TAG, "❌ Shizuku增强模式: 所有提供者设置失败")
+            }
+
+            success
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Shizuku增强模式异常: ${e.message}", e)
+            val errorResult = false
+            errorResult
+        }
+    }
+
     // UserService模式下，所有提供者操作都在UserService中处理
     // 这些方法不再需要
 
@@ -85,8 +157,8 @@ object MockLocationManager {
         try {
             Log.e(TAG, "🛑🛑🛑 停止Shizuku增强模式模拟定位...")
 
-            // UserService模式暂时禁用
-            Log.e(TAG, "⚠️ UserService模式暂时禁用，无需特殊停止操作")
+            // 停止旧的Shizuku实现
+            stopShizukuMockLocation(context)
 
             Log.e(TAG, "🛑🛑🛑 Shizuku增强模式模拟定位已停止")
         } catch (e: Exception) {
@@ -95,6 +167,36 @@ object MockLocationManager {
     }
 
     fun isRunning(): Boolean = isRunning
+
+    /**
+     * 停止旧的Shizuku实现
+     */
+    private fun stopShizukuMockLocation(context: Context) {
+        Log.e(TAG, "🛑 停止Shizuku增强模式...")
+
+        try {
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+            val providers = listOf(
+                LocationManager.GPS_PROVIDER,
+                LocationManager.NETWORK_PROVIDER,
+                LocationManager.PASSIVE_PROVIDER
+            )
+
+            for (provider in providers) {
+                try {
+                    locationManager.removeTestProvider(provider)
+                    Log.e(TAG, "✅ Shizuku增强模式: $provider 提供者已移除")
+                } catch (e: Exception) {
+                    Log.e(TAG, "⚠️ Shizuku增强模式: $provider 提供者移除失败: ${e.message}")
+                }
+            }
+
+            Log.e(TAG, "✅ Shizuku增强模式停止完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 停止Shizuku增强模式失败: ${e.message}", e)
+        }
+    }
 
     // UserService模式下，所有位置操作都在UserService中处理
 }
