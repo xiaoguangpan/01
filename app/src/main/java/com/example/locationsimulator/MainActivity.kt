@@ -1493,18 +1493,25 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         // 延迟一下再验证，确保系统有时间处理
                         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                             val isVerified = verifyMockLocation(context)
+
+                            // 检测目标应用状态
+                            checkTargetAppsStatus(context)
+
                             if (isVerified) {
                                 addDebugMessage("✅ 验证成功：系统已获取到模拟位置")
                                 addDebugMessage("💡 第三方应用现在应该能获取到模拟位置了")
-                                addDebugMessage("🔄 建议操作：")
-                                addDebugMessage("  1. 重启目标应用（百度地图、高德地图、钉钉等）")
-                                addDebugMessage("  2. 或者清除目标应用的缓存")
-                                addDebugMessage("  3. 开启飞行模式3秒后关闭（重置网络定位）")
-                                addDebugMessage("📶 WiFi相关建议：")
-                                addDebugMessage("  • 如果WiFi已开启但模拟定位失效，尝试关闭WiFi")
-                                addDebugMessage("  • 钉钉打卡：开启WiFi热点而不是连接WiFi")
-                                addDebugMessage("  • 或使用Xposed模块绕过钉钉WiFi检测")
-                                addDebugMessage("⚡ 强制覆盖机制已启动，每秒更新位置对抗反检测")
+                                addDebugMessage("🔄 针对性操作建议：")
+                                addDebugMessage("📱 百度地图：")
+                                addDebugMessage("  • 强制停止百度地图 → 清除缓存 → 重启应用")
+                                addDebugMessage("  • 如仍无效，百度地图反检测极强，建议使用其他地图")
+                                addDebugMessage("🗺️ 高德地图：")
+                                addDebugMessage("  • 关闭WiFi → 开启飞行模式3秒 → 关闭飞行模式 → 重启高德地图")
+                                addDebugMessage("  • 保持WiFi关闭状态使用")
+                                addDebugMessage("💼 钉钉打卡：")
+                                addDebugMessage("  • 开启飞行模式3秒 → 关闭飞行模式 → 立即打开钉钉打卡")
+                                addDebugMessage("  • 动作要快，钉钉有延迟检测机制")
+                                addDebugMessage("  • WiFi要求：开启WiFi热点而不是连接WiFi")
+                                addDebugMessage("⚡ 多重覆盖机制已启动，包括应用特定增强")
                             } else {
                                 addDebugMessage("❌ 验证失败：系统未获取到模拟位置")
                                 addDebugMessage("💡 可能需要重启相关应用或检查权限")
@@ -2002,6 +2009,9 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 // 尝试禁用WiFi定位服务
                 disableWifiLocationServices(context)
 
+                // 针对特定应用的增强处理
+                applyAppSpecificEnhancements(context, lat, lng, locationManager)
+
                 // 启动持续位置更新 - 对抗反检测
                 startContinuousLocationUpdate(context, lat, lng, locationManager, allProviders)
 
@@ -2067,6 +2077,297 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
         } catch (e: Exception) {
             addDebugMessage("❌ 禁用WiFi定位服务失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 检测目标应用状态
+     */
+    private fun checkTargetAppsStatus(context: Context) {
+        try {
+            addDebugMessage("📱 检测目标应用运行状态...")
+
+            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            val runningApps = activityManager.runningAppProcesses
+
+            val targetApps = mapOf(
+                "com.baidu.BaiduMap" to "百度地图",
+                "com.autonavi.minimap" to "高德地图",
+                "com.alibaba.android.rimet" to "钉钉"
+            )
+
+            val runningTargetApps = mutableListOf<String>()
+
+            if (runningApps != null) {
+                for (app in runningApps) {
+                    for ((packageName, appName) in targetApps) {
+                        if (app.processName.contains(packageName)) {
+                            runningTargetApps.add(appName)
+                            addDebugMessage("🟢 $appName 正在运行")
+                        }
+                    }
+                }
+            }
+
+            if (runningTargetApps.isEmpty()) {
+                addDebugMessage("📱 目标应用均未运行，建议启动应用测试模拟定位效果")
+            } else {
+                addDebugMessage("💡 检测到运行中的目标应用: ${runningTargetApps.joinToString(", ")}")
+                addDebugMessage("🔄 建议重启这些应用以获得最佳模拟定位效果")
+            }
+
+        } catch (e: Exception) {
+            addDebugMessage("❌ 应用状态检测失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 针对特定应用的增强处理
+     */
+    private fun applyAppSpecificEnhancements(
+        context: Context,
+        lat: Double,
+        lng: Double,
+        locationManager: LocationManager
+    ) {
+        addDebugMessage("🎯 应用特定增强处理...")
+
+        try {
+            // 检测已安装的目标应用
+            val packageManager = context.packageManager
+            val targetApps = mapOf(
+                "com.baidu.BaiduMap" to "百度地图",
+                "com.autonavi.minimap" to "高德地图",
+                "com.alibaba.android.rimet" to "钉钉",
+                "com.tencent.mm" to "微信"
+            )
+
+            val installedTargetApps = mutableListOf<String>()
+            for ((packageName, appName) in targetApps) {
+                try {
+                    packageManager.getPackageInfo(packageName, 0)
+                    installedTargetApps.add(appName)
+                    addDebugMessage("📱 检测到目标应用: $appName")
+                } catch (e: Exception) {
+                    // 应用未安装
+                }
+            }
+
+            if (installedTargetApps.isNotEmpty()) {
+                addDebugMessage("🎯 为以下应用启用增强模式: ${installedTargetApps.joinToString(", ")}")
+
+                // 百度地图特殊处理
+                if (installedTargetApps.contains("百度地图")) {
+                    addDebugMessage("🔧 百度地图增强处理...")
+                    enhanceForBaiduMaps(context, lat, lng, locationManager)
+                }
+
+                // 高德地图特殊处理
+                if (installedTargetApps.contains("高德地图")) {
+                    addDebugMessage("🔧 高德地图增强处理...")
+                    enhanceForGaodeMaps(context, lat, lng, locationManager)
+                }
+
+                // 钉钉特殊处理
+                if (installedTargetApps.contains("钉钉")) {
+                    addDebugMessage("🔧 钉钉增强处理...")
+                    enhanceForDingTalk(context, lat, lng, locationManager)
+                }
+            } else {
+                addDebugMessage("📱 未检测到目标应用，使用通用增强模式")
+            }
+
+        } catch (e: Exception) {
+            addDebugMessage("❌ 应用特定增强处理失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 百度地图增强处理 - 对抗最强反检测
+     */
+    private fun enhanceForBaiduMaps(
+        context: Context,
+        lat: Double,
+        lng: Double,
+        locationManager: LocationManager
+    ) {
+        try {
+            addDebugMessage("🔧 百度地图反检测增强...")
+
+            // 尝试覆盖更多底层提供者
+            val baiduProviders = listOf(
+                "baidu_location", "bd_location", "baidu_gps",
+                "china_location", "cn_gps", "domestic_gps"
+            )
+
+            for (provider in baiduProviders) {
+                try {
+                    // 尝试添加百度特定提供者
+                    locationManager.addTestProvider(
+                        provider,
+                        true, false, false, false, true, true, true,
+                        Criteria.POWER_HIGH, // 使用高功耗模拟真实GPS
+                        Criteria.ACCURACY_FINE
+                    )
+
+                    locationManager.setTestProviderEnabled(provider, true)
+
+                    val location = Location(provider).apply {
+                        latitude = lat
+                        longitude = lng
+                        accuracy = 1.0f // 极高精度
+                        altitude = 50.0
+                        time = System.currentTimeMillis()
+                        elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+
+                        extras = android.os.Bundle().apply {
+                            putInt("satellites", 12) // 更多卫星
+                            putFloat("hdop", 0.5f) // 极低HDOP
+                            putString("provider_type", "gps")
+                            putBoolean("from_mock_provider", false) // 明确标记非Mock
+                        }
+                    }
+
+                    locationManager.setTestProviderLocation(provider, location)
+                    addDebugMessage("✅ 百度特定提供者设置成功: $provider")
+
+                } catch (e: Exception) {
+                    // 提供者可能不存在，继续尝试下一个
+                }
+            }
+
+            addDebugMessage("💡 百度地图建议: 重启百度地图并清除其缓存")
+
+        } catch (e: Exception) {
+            addDebugMessage("❌ 百度地图增强处理失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 高德地图增强处理 - 针对WiFi检测
+     */
+    private fun enhanceForGaodeMaps(
+        context: Context,
+        lat: Double,
+        lng: Double,
+        locationManager: LocationManager
+    ) {
+        try {
+            addDebugMessage("🔧 高德地图WiFi对抗增强...")
+
+            // 高德地图特别容易受WiFi影响，加强WiFi相关提供者覆盖
+            val gaodeProviders = listOf(
+                "amap_location", "autonavi_gps", "gaode_location"
+            )
+
+            for (provider in gaodeProviders) {
+                try {
+                    locationManager.addTestProvider(
+                        provider,
+                        false, false, false, false, true, true, true,
+                        Criteria.POWER_MEDIUM,
+                        Criteria.ACCURACY_FINE
+                    )
+
+                    locationManager.setTestProviderEnabled(provider, true)
+
+                    val location = Location(provider).apply {
+                        latitude = lat
+                        longitude = lng
+                        accuracy = 2.0f
+                        time = System.currentTimeMillis()
+                        elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+                    }
+
+                    locationManager.setTestProviderLocation(provider, location)
+                    addDebugMessage("✅ 高德特定提供者设置成功: $provider")
+
+                } catch (e: Exception) {
+                    // 继续尝试
+                }
+            }
+
+            addDebugMessage("💡 高德地图建议: 关闭WiFi或开启飞行模式后重启高德地图")
+
+        } catch (e: Exception) {
+            addDebugMessage("❌ 高德地图增强处理失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 钉钉增强处理 - 对抗延迟检测
+     */
+    private fun enhanceForDingTalk(
+        context: Context,
+        lat: Double,
+        lng: Double,
+        locationManager: LocationManager
+    ) {
+        try {
+            addDebugMessage("🔧 钉钉延迟检测对抗...")
+
+            // 钉钉有延迟检测机制，需要更频繁的位置更新
+            addDebugMessage("💡 钉钉特殊策略: 启动超频位置更新")
+
+            // 启动钉钉专用的超频更新
+            startDingTalkSpecificUpdate(context, lat, lng, locationManager)
+
+            addDebugMessage("💡 钉钉建议: 开启飞行模式3秒后关闭，然后立即打卡")
+
+        } catch (e: Exception) {
+            addDebugMessage("❌ 钉钉增强处理失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 钉钉专用超频位置更新
+     */
+    private fun startDingTalkSpecificUpdate(
+        context: Context,
+        lat: Double,
+        lng: Double,
+        locationManager: LocationManager
+    ) {
+        addDebugMessage("⚡ 启动钉钉专用超频更新...")
+
+        viewModelScope.launch {
+            repeat(120) { // 2分钟超频更新
+                delay(250) // 每0.25秒更新一次
+
+                if (!isSimulating) {
+                    addDebugMessage("🛑 模拟定位已停止，终止钉钉超频更新")
+                    return@launch
+                }
+
+                try {
+                    val providers = listOf("gps", "network", "fused")
+                    for (provider in providers) {
+                        try {
+                            val currentTime = System.currentTimeMillis()
+                            val location = Location(provider).apply {
+                                latitude = lat + (Math.random() - 0.5) * 0.0000001 // 极小随机偏移
+                                longitude = lng + (Math.random() - 0.5) * 0.0000001
+                                accuracy = 1.0f + Math.random().toFloat()
+                                time = currentTime
+                                elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+                            }
+
+                            locationManager.setTestProviderLocation(provider, location)
+                        } catch (e: Exception) {
+                            // 忽略错误
+                        }
+                    }
+
+                    if (it % 40 == 0) { // 每10秒输出一次
+                        addDebugMessage("⚡ 钉钉超频更新: 第${it + 1}次")
+                    }
+
+                } catch (e: Exception) {
+                    // 忽略错误
+                }
+            }
+
+            addDebugMessage("✅ 钉钉超频更新完成")
         }
     }
 
