@@ -1,6 +1,9 @@
 package com.example.locationsimulator.util
 
 import android.content.Context
+import android.location.Criteria
+import android.location.Location
+import android.location.LocationManager
 import android.util.Log
 import rikka.shizuku.Shizuku
 import androidx.compose.runtime.NoLiveLiterals
@@ -94,9 +97,9 @@ object MockLocationManager {
 
             // 为所有提供者添加测试提供者
             val providers = listOf(
-                LocationManager.GPS_PROVIDER,
-                LocationManager.NETWORK_PROVIDER,
-                LocationManager.PASSIVE_PROVIDER
+                "gps",
+                "network",
+                "passive"
             )
 
             var successCount = 0
@@ -106,8 +109,8 @@ object MockLocationManager {
                     locationManager.addTestProvider(
                         provider,
                         false, false, false, false, false, true, true,
-                        android.location.Criteria.POWER_LOW,
-                        android.location.Criteria.ACCURACY_FINE
+                        Criteria.POWER_LOW,
+                        Criteria.ACCURACY_FINE
                     )
                     locationManager.setTestProviderEnabled(provider, true)
 
@@ -178,9 +181,9 @@ object MockLocationManager {
             val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
             val providers = listOf(
-                LocationManager.GPS_PROVIDER,
-                LocationManager.NETWORK_PROVIDER,
-                LocationManager.PASSIVE_PROVIDER
+                "gps",
+                "network",
+                "passive"
             )
 
             for (provider in providers) {
