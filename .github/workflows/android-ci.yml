@@ -20,6 +20,16 @@ jobs:
         distribution: 'temurin'
         cache: 'gradle'
 
+    - name: Force Clean Cache
+      run: |
+        echo "🧹 强制清理所有缓存..."
+        rm -rf ~/.gradle/caches/
+        rm -rf ~/.gradle/wrapper/
+        rm -rf .gradle/
+        rm -rf app/build/
+        rm -rf build/
+        echo "✅ 缓存清理完成"
+
     - name: Generate Keystores
       run: |
         keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug, O=Android, C=US" -storepass android -keypass android
@@ -52,6 +62,12 @@ jobs:
         echo "RELEASE_SHA1=$RELEASE_SHA1" >> $GITHUB_OUTPUT
         echo "DEBUG_SECURITY_CODE=$DEBUG_SECURITY_CODE" >> $GITHUB_OUTPUT
         echo "RELEASE_SECURITY_CODE=$RELEASE_SECURITY_CODE" >> $GITHUB_OUTPUT
+
+    - name: Force Clean Build
+      run: |
+        echo "🧹 强制清理构建缓存..."
+        gradle clean
+        echo "✅ 构建缓存清理完成"
 
     - name: Build with Gradle
       run: gradle build
