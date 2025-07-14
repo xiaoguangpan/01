@@ -18,11 +18,24 @@ object MockLocationManager {
     fun start(context: Context, lat: Double, lng: Double): Boolean {
         Log.e(TAG, "🚀🚀🚀 MockLocationManager.start() 被调用！")
         Log.e(TAG, "📍 目标坐标: lat=$lat, lng=$lng")
-        Log.e(TAG, "🔧 使用Shizuku UserService模式进行位置模拟")
+        Log.e(TAG, "🔧 使用Shizuku增强模式进行位置模拟")
+
+        // 检查Shizuku连接状态
+        try {
+            val binderAlive = Shizuku.pingBinder()
+            Log.e(TAG, "🔗 Shizuku Binder状态: $binderAlive")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Shizuku Binder检查失败: ${e.message}")
+        }
 
         // 检查Shizuku权限（正确的权限检查方式）
-        val permissionStatus = Shizuku.checkSelfPermission()
-        Log.e(TAG, "🔐 Shizuku权限检查: $permissionStatus")
+        val permissionStatus = try {
+            Shizuku.checkSelfPermission()
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Shizuku权限检查异常: ${e.message}")
+            return false
+        }
+        Log.e(TAG, "🔐 Shizuku权限检查结果: $permissionStatus")
 
         if (permissionStatus != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             Log.e(TAG, "❌ Shizuku权限不足，无法启动增强模式")
