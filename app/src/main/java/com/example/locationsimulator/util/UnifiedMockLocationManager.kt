@@ -50,6 +50,11 @@ object UnifiedMockLocationManager {
      * Fallback Mode: Shizuku模式 (系统级权限，需要增强模式开启)
      */
     fun start(context: Context, latitude: Double, longitude: Double, enableShizukuMode: Boolean = false): MockLocationResult {
+        // 强制输出日志 - 确保代码更新
+        android.util.Log.e("FORCE_DEBUG", "🚀🚀🚀 UnifiedMockLocationManager.start() 被调用！ [版本2024-12-14-11:15]")
+        android.util.Log.e("FORCE_DEBUG", "📍 目标坐标: $latitude, $longitude")
+        android.util.Log.e("FORCE_DEBUG", "🔧 Shizuku增强模式: ${if (enableShizukuMode) "已开启" else "已关闭"}")
+
         Log.e(TAG, "🚀🚀🚀 UnifiedMockLocationManager.start() 被调用！")
         Log.e(TAG, "📍 目标坐标: $latitude, $longitude")
         Log.e(TAG, "🔧 Shizuku增强模式: ${if (enableShizukuMode) "已开启" else "已关闭"}")

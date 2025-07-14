@@ -16,6 +16,11 @@ object MockLocationManager {
     private var isRunning = false
 
     fun start(context: Context, lat: Double, lng: Double): Boolean {
+        // 强制输出日志 - 确保代码更新
+        android.util.Log.e("FORCE_DEBUG", "🚀🚀🚀 MockLocationManager.start() 被调用！ [版本2024-12-14-11:15]")
+        android.util.Log.e("FORCE_DEBUG", "📍 目标坐标: lat=$lat, lng=$lng")
+        android.util.Log.e("FORCE_DEBUG", "🔧 使用Shizuku增强模式进行位置模拟")
+
         Log.e(TAG, "🚀🚀🚀 MockLocationManager.start() 被调用！")
         Log.e(TAG, "📍 目标坐标: lat=$lat, lng=$lng")
         Log.e(TAG, "🔧 使用Shizuku增强模式进行位置模拟")
