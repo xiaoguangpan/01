@@ -89,6 +89,7 @@ object UnifiedMockLocationManager {
         if (enableShizukuMode) {
             Log.e(TAG, "🔧🔧🔧 Shizuku增强模式已开启，优先尝试Shizuku模式...")
             Log.e(TAG, "🔧 Shizuku状态检查结果: ${shizukuStatus.name} - ${shizukuStatus.message}")
+            Log.e(TAG, "🔧 即将进入Shizuku状态判断分支...")
 
             when (shizukuStatus) {
                 ShizukuStatus.READY -> {

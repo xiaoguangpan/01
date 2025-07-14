@@ -1221,7 +1221,10 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 addDebugMessage("🎯 坐标传递链路: 建议选择 → 直接使用 → 模拟定位")
 
                 // 使用统一模拟定位管理器
+                addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start()")
+                addDebugMessage("🔥 参数: context=$context, lat=$wgsLat, lng=$wgsLng, enableShizuku=$isShizukuEnhancedModeEnabled")
                 val result = UnifiedMockLocationManager.start(context, wgsLat, wgsLng, isShizukuEnhancedModeEnabled)
+                addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $result")
 
                 when (result) {
                     is MockLocationResult.Success -> {
@@ -1310,7 +1313,10 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         addDebugMessage("🎯 坐标传递链路: 地理编码API → 坐标转换 → 模拟定位")
 
                         // 使用统一模拟定位管理器
+                        addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start() [地理编码]")
+                        addDebugMessage("🔥 参数: context=$context, lat=$latWgs, lng=$lngWgs, enableShizuku=$isShizukuEnhancedModeEnabled")
                         val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs, isShizukuEnhancedModeEnabled)
+                        addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $result")
 
                         when (result) {
                             is MockLocationResult.Success -> {
@@ -1427,7 +1433,10 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 Log.d("LocationViewModel", "Starting comprehensive mock location: lng=$lngWgs, lat=$latWgs")
 
                 // 使用统一模拟定位管理器
+                addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start() [坐标模式]")
+                addDebugMessage("🔥 参数: context=$context, lat=$latWgs, lng=$lngWgs, enableShizuku=$isShizukuEnhancedModeEnabled")
                 val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs, isShizukuEnhancedModeEnabled)
+                addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $result")
 
                 when (result) {
                     is MockLocationResult.Success -> {
