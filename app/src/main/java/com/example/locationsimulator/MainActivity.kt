@@ -1379,7 +1379,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                                 statusMessage = "模拟失败: ${mockResult.status.message}"
 
                                 // 显示设置说明
-                                showSetupInstructions(context, result.instructions)
+                                showSetupInstructions(context, mockResult.instructions)
                             }
                         }
                     } else {
