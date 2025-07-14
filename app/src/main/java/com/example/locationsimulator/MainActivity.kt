@@ -1500,6 +1500,10 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                                 addDebugMessage("  1. 重启目标应用（百度地图、高德地图、钉钉等）")
                                 addDebugMessage("  2. 或者清除目标应用的缓存")
                                 addDebugMessage("  3. 开启飞行模式3秒后关闭（重置网络定位）")
+                                addDebugMessage("📶 WiFi相关建议：")
+                                addDebugMessage("  • 如果WiFi已开启但模拟定位失效，尝试关闭WiFi")
+                                addDebugMessage("  • 钉钉打卡：开启WiFi热点而不是连接WiFi")
+                                addDebugMessage("  • 或使用Xposed模块绕过钉钉WiFi检测")
                                 addDebugMessage("⚡ 强制覆盖机制已启动，每秒更新位置对抗反检测")
                             } else {
                                 addDebugMessage("❌ 验证失败：系统未获取到模拟位置")
@@ -1761,6 +1765,48 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     }
 
     /**
+     * 检查WiFi状态 - 分析WiFi对模拟定位的影响
+     */
+    private fun checkWifiStatus(context: Context) {
+        try {
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+            val isWifiEnabled = wifiManager.isWifiEnabled
+            val connectionInfo = wifiManager.connectionInfo
+            val isConnected = connectionInfo?.networkId != -1
+
+            addDebugMessage("📶 WiFi状态检测:")
+            addDebugMessage("  📶 WiFi开启状态: ${if (isWifiEnabled) "已开启" else "已关闭"}")
+            addDebugMessage("  🔗 WiFi连接状态: ${if (isConnected) "已连接" else "未连接"}")
+
+            if (isWifiEnabled) {
+                addDebugMessage("  ⚠️ 检测到WiFi已开启，这可能影响模拟定位效果")
+                addDebugMessage("  💡 WiFi定位服务优先级高于模拟定位")
+                addDebugMessage("  🔧 将尝试覆盖所有WiFi相关定位提供者")
+
+                if (isConnected) {
+                    addDebugMessage("  📍 WiFi已连接，网络定位可能更精确")
+                    addDebugMessage("  🎯 将使用更强的覆盖策略")
+                } else {
+                    addDebugMessage("  📍 WiFi未连接，但WiFi扫描仍可提供位置信息")
+                }
+            } else {
+                addDebugMessage("  ✅ WiFi已关闭，模拟定位效果应该更好")
+            }
+
+            // 检查位置服务设置
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+            val isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+
+            addDebugMessage("  🛰️ GPS定位: ${if (isGpsEnabled) "已开启" else "已关闭"}")
+            addDebugMessage("  🌐 网络定位: ${if (isNetworkEnabled) "已开启" else "已关闭"}")
+
+        } catch (e: Exception) {
+            addDebugMessage("❌ WiFi状态检测失败: ${e.message}")
+        }
+    }
+
+    /**
      * 验证模拟位置是否生效
      */
     fun verifyMockLocation(context: Context): Boolean {
@@ -1802,6 +1848,9 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         addDebugMessage("📍 目标坐标: lat=$lat, lng=$lng")
 
         return try {
+            // 检查WiFi状态
+            checkWifiStatus(context)
+
             // 检查Shizuku权限
             addDebugMessage("🔐 检查Shizuku权限...")
             val permissionStatus = Shizuku.checkSelfPermission()
@@ -1820,9 +1869,10 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
             // 设置主要位置提供者（跳过passive，因为它不能被模拟）
             val providers = listOf("gps", "network")
 
-            // 尝试添加融合定位提供者（如果存在）
+            // 尝试添加所有可能的定位提供者
             val allProviders = mutableListOf<String>().apply {
                 addAll(providers)
+
                 // 尝试添加融合定位
                 try {
                     if (locationManager.getProvider("fused") != null) {
@@ -1831,6 +1881,32 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                     }
                 } catch (e: Exception) {
                     // 融合定位可能不存在
+                }
+
+                // 尝试添加WiFi定位相关提供者
+                val wifiProviders = listOf("wifi", "wps", "nlp", "passive")
+                for (wifiProvider in wifiProviders) {
+                    try {
+                        if (locationManager.getProvider(wifiProvider) != null) {
+                            add(wifiProvider)
+                            addDebugMessage("🔍 发现WiFi定位提供者: $wifiProvider，将一并覆盖")
+                        }
+                    } catch (e: Exception) {
+                        // 提供者可能不存在
+                    }
+                }
+
+                // 获取所有可用提供者并尝试覆盖
+                try {
+                    val allSystemProviders = locationManager.allProviders
+                    for (systemProvider in allSystemProviders) {
+                        if (!contains(systemProvider) && systemProvider != "passive") {
+                            add(systemProvider)
+                            addDebugMessage("🔍 发现系统定位提供者: $systemProvider，将一并覆盖")
+                        }
+                    }
+                } catch (e: Exception) {
+                    addDebugMessage("⚠️ 无法获取所有系统提供者: ${e.message}")
                 }
             }
             var successCount = 0
@@ -1923,6 +1999,9 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
             if (success) {
                 addDebugMessage("🎯🎯🎯 直接增强模式启动成功！设置了 $successCount/${allProviders.size} 个提供者")
 
+                // 尝试禁用WiFi定位服务
+                disableWifiLocationServices(context)
+
                 // 启动持续位置更新 - 对抗反检测
                 startContinuousLocationUpdate(context, lat, lng, locationManager, allProviders)
 
@@ -1936,6 +2015,58 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         } catch (e: Exception) {
             addDebugMessage("❌❌❌ 直接增强模式异常: ${e.javaClass.simpleName} - ${e.message}")
             false
+        }
+    }
+
+    /**
+     * 尝试禁用WiFi定位服务 - 防止WiFi定位干扰模拟定位
+     */
+    private fun disableWifiLocationServices(context: Context) {
+        addDebugMessage("🚫 尝试禁用WiFi定位服务...")
+
+        try {
+            // 尝试通过系统设置禁用WiFi扫描
+            val contentResolver = context.contentResolver
+
+            // 尝试禁用WiFi扫描（需要系统权限）
+            try {
+                android.provider.Settings.Global.putInt(
+                    contentResolver,
+                    "wifi_scan_always_enabled",
+                    0
+                )
+                addDebugMessage("✅ 已尝试禁用WiFi扫描")
+            } catch (e: Exception) {
+                addDebugMessage("⚠️ 无法禁用WiFi扫描: ${e.message}")
+            }
+
+            // 尝试禁用网络定位
+            try {
+                android.provider.Settings.Secure.putInt(
+                    contentResolver,
+                    "network_location_opt_in",
+                    0
+                )
+                addDebugMessage("✅ 已尝试禁用网络定位")
+            } catch (e: Exception) {
+                addDebugMessage("⚠️ 无法禁用网络定位: ${e.message}")
+            }
+
+            // 尝试通过LocationManager禁用网络提供者
+            try {
+                val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+                // 检查是否可以禁用网络提供者
+                if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                    addDebugMessage("⚠️ 网络定位提供者仍然启用，WiFi可能影响模拟定位")
+                    addDebugMessage("💡 建议：关闭WiFi或断开WiFi连接以获得最佳效果")
+                }
+            } catch (e: Exception) {
+                addDebugMessage("❌ 检查网络提供者失败: ${e.message}")
+            }
+
+        } catch (e: Exception) {
+            addDebugMessage("❌ 禁用WiFi定位服务失败: ${e.message}")
         }
     }
 
@@ -2012,10 +2143,10 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     ) {
         addDebugMessage("⚡ 启动强制覆盖机制 - 对抗反检测...")
 
-        // 使用协程每秒强制更新
+        // 使用协程每秒强制更新 - 增强对抗WiFi定位
         viewModelScope.launch {
-            repeat(300) { // 更新300次，每次间隔1秒，总共5分钟
-                delay(1000) // 等待1秒
+            repeat(600) { // 更新600次，每次间隔1秒，总共10分钟
+                delay(500) // 等待0.5秒 - 更频繁的更新对抗WiFi定位
 
                 if (!isSimulating) {
                     addDebugMessage("🛑 模拟定位已停止，终止强制覆盖")
@@ -2049,7 +2180,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                             // 强制设置位置
                             locationManager.setTestProviderLocation(provider, location)
 
-                            if (it % 10 == 0) { // 每10秒输出一次日志
+                            if (it % 20 == 0) { // 每10秒输出一次日志（因为间隔改为0.5秒）
                                 addDebugMessage("⚡ 强制覆盖: $provider (第${it + 1}次)")
                             }
                         } catch (e: Exception) {
@@ -2063,7 +2194,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 }
             }
 
-            addDebugMessage("✅ 强制覆盖机制完成（共300次）")
+            addDebugMessage("✅ 强制覆盖机制完成（共600次）")
         }
     }
 
