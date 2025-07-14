@@ -1317,52 +1317,27 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         addDebugMessage("🎯 坐标传递链路: 地理编码API → 坐标转换 → 模拟定位")
 
                         // 启动模拟定位
-                        if (isShizukuEnhancedModeEnabled) {
-                            viewModel.addDebugMessage("🔥🔥🔥 使用直接增强模式实现 [地理编码]")
-                            viewModel.addDebugMessage("🔥 参数: lat=$latWgs, lng=$lngWgs")
-                            val directResult = viewModel.directShizukuMockLocation(context, latWgs, lngWgs)
-                            viewModel.addDebugMessage("🔥🔥🔥 直接增强模式结果: $directResult")
+                        val mockResult = if (isShizukuEnhancedModeEnabled) {
+                            addDebugMessage("🔥🔥🔥 使用直接增强模式实现 [地理编码]")
+                            addDebugMessage("🔥 参数: lat=$latWgs, lng=$lngWgs")
+                            val directResult = directShizukuMockLocation(context, latWgs, lngWgs)
+                            addDebugMessage("🔥🔥🔥 直接增强模式结果: $directResult")
 
-                            val result = if (directResult) {
+                            if (directResult) {
                                 MockLocationResult.Success(MockLocationStrategy.SHIZUKU)
                             } else {
-                                MockLocationResult.Failure(MockLocationStatus.PERMISSION_DENIED, emptyList())
-                            }
-
-                            // 处理结果
-                            when (result) {
-                                is MockLocationResult.Success -> {
-                                    viewModel.addDebugMessage("✅ 模拟定位启动成功 - 策略: ${result.strategy.displayName}")
-                                    viewModel.addDebugMessage("📱 已覆盖所有定位提供者 (GPS/网络/被动)")
-                                    viewModel.addDebugMessage("🎯 地图坐标保持: BD09($lng, $lat)")
-                                    viewModel.addDebugMessage("🎯 模拟坐标设置: WGS84($lngWgs, $latWgs)")
-                                }
-                                is MockLocationResult.Failure -> {
-                                    viewModel.addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
-                                }
+                                MockLocationResult.Failure(MockLocationStatus.NO_PERMISSION, emptyList())
                             }
                         } else {
                             // 使用统一模拟定位管理器
-                            viewModel.addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start() [地理编码]")
-                            viewModel.addDebugMessage("🔥 参数: context=$context, lat=$latWgs, lng=$lngWgs, enableShizuku=$isShizukuEnhancedModeEnabled")
+                            addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start() [地理编码]")
+                            addDebugMessage("🔥 参数: context=$context, lat=$latWgs, lng=$lngWgs, enableShizuku=$isShizukuEnhancedModeEnabled")
                             val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs, isShizukuEnhancedModeEnabled)
-                            viewModel.addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $result")
-
-                            // 处理结果
-                            when (result) {
-                                is MockLocationResult.Success -> {
-                                    viewModel.addDebugMessage("✅ 模拟定位启动成功 - 策略: ${result.strategy.displayName}")
-                                    viewModel.addDebugMessage("📱 已覆盖所有定位提供者 (GPS/网络/被动)")
-                                    viewModel.addDebugMessage("🎯 地图坐标保持: BD09($lng, $lat)")
-                                    viewModel.addDebugMessage("🎯 模拟坐标设置: WGS84($lngWgs, $latWgs)")
-                                }
-                                is MockLocationResult.Failure -> {
-                                    viewModel.addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
-                                }
-                            }
+                            addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $result")
+                            result
                         }
 
-                        when (result) {
+                        when (mockResult) {
                             is MockLocationResult.Success -> {
                                 // 保存模拟定位的WGS84坐标
                                 simulationLatitude = latWgs
@@ -1372,36 +1347,36 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                                 currentLatitude = location.latitude
                                 currentLongitude = location.longitude
 
-                                addDebugMessage("✅ 模拟定位启动成功 - 策略: ${result.strategy.displayName}")
+                                addDebugMessage("✅ 模拟定位启动成功 - 策略: ${mockResult.strategy.displayName}")
                                 addDebugMessage("📱 已覆盖所有定位提供者 (GPS/网络/被动)")
                                 addDebugMessage("🎯 地图坐标保持: BD09(${location.longitude}, ${location.latitude})")
                                 addDebugMessage("📱 最终GPS坐标: WGS84($lngWgs, $latWgs)")
                                 addDebugMessage("⚠️ 警告: 使用地理编码API，位置可能与建议不同")
 
                                 isSimulating = true
-                                statusMessage = "模拟定位成功！策略：${result.strategy.displayName}，位置：$addressQuery"
+                                statusMessage = "模拟定位成功！策略：${mockResult.strategy.displayName}，位置：$addressQuery"
 
                                 // 显示Toast提示
                                 android.widget.Toast.makeText(
                                     context,
-                                    "模拟定位成功！策略：${result.strategy.displayName}",
+                                    "模拟定位成功！策略：${mockResult.strategy.displayName}",
                                     android.widget.Toast.LENGTH_LONG
                                 ).show()
                             }
 
                             is MockLocationResult.Failure -> {
-                                addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
+                                addDebugMessage("❌ 模拟定位启动失败: ${mockResult.status.message}")
 
                                 // 只有在Shizuku相关问题时才显示Shizuku状态对话框
-                                if (isShizukuEnhancedModeEnabled && isShizukuRelatedFailure(result.status)) {
+                                if (isShizukuEnhancedModeEnabled && isShizukuRelatedFailure(mockResult.status)) {
                                     checkAndShowShizukuStatus(context)
                                 }
 
                                 addDebugMessage("📋 设置说明:")
-                                result.instructions.forEach { instruction ->
+                                mockResult.instructions.forEach { instruction ->
                                     addDebugMessage("  • ${instruction.title}: ${instruction.description}")
                                 }
-                                statusMessage = "模拟失败: ${result.status.message}"
+                                statusMessage = "模拟失败: ${mockResult.status.message}"
 
                                 // 显示设置说明
                                 showSetupInstructions(context, result.instructions)
@@ -1478,21 +1453,21 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
                 // 启动模拟定位
                 val result = if (isShizukuEnhancedModeEnabled) {
-                    viewModel.addDebugMessage("🔥🔥🔥 使用直接增强模式实现 [坐标模式]")
-                    viewModel.addDebugMessage("🔥 参数: lat=$latWgs, lng=$lngWgs")
-                    val directResult = viewModel.directShizukuMockLocation(context, latWgs, lngWgs)
-                    viewModel.addDebugMessage("🔥🔥🔥 直接增强模式结果: $directResult")
+                    addDebugMessage("🔥🔥🔥 使用直接增强模式实现 [坐标模式]")
+                    addDebugMessage("🔥 参数: lat=$latWgs, lng=$lngWgs")
+                    val directResult = directShizukuMockLocation(context, latWgs, lngWgs)
+                    addDebugMessage("🔥🔥🔥 直接增强模式结果: $directResult")
                     if (directResult) {
                         MockLocationResult.Success(MockLocationStrategy.SHIZUKU)
                     } else {
-                        MockLocationResult.Failure(MockLocationStatus.PERMISSION_DENIED, emptyList())
+                        MockLocationResult.Failure(MockLocationStatus.NO_PERMISSION, emptyList())
                     }
                 } else {
                     // 使用统一模拟定位管理器
-                    viewModel.addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start() [坐标模式]")
-                    viewModel.addDebugMessage("🔥 参数: context=$context, lat=$latWgs, lng=$lngWgs, enableShizuku=$isShizukuEnhancedModeEnabled")
+                    addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start() [坐标模式]")
+                    addDebugMessage("🔥 参数: context=$context, lat=$latWgs, lng=$lngWgs, enableShizuku=$isShizukuEnhancedModeEnabled")
                     val unifiedResult = UnifiedMockLocationManager.start(context, latWgs, lngWgs, isShizukuEnhancedModeEnabled)
-                    viewModel.addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $unifiedResult")
+                    addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $unifiedResult")
                     unifiedResult
                 }
 
