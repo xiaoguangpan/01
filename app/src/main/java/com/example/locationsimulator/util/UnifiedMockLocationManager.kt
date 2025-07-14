@@ -50,9 +50,9 @@ object UnifiedMockLocationManager {
      * Fallback Mode: Shizuku模式 (系统级权限，需要增强模式开启)
      */
     fun start(context: Context, latitude: Double, longitude: Double, enableShizukuMode: Boolean = false): MockLocationResult {
-        Log.d(TAG, "🚀 启动模拟定位系统")
-        Log.d(TAG, "📍 目标坐标: $latitude, $longitude")
-        Log.d(TAG, "🔧 Shizuku增强模式: ${if (enableShizukuMode) "已开启" else "已关闭"}")
+        Log.e(TAG, "🚀🚀🚀 UnifiedMockLocationManager.start() 被调用！")
+        Log.e(TAG, "📍 目标坐标: $latitude, $longitude")
+        Log.e(TAG, "🔧 Shizuku增强模式: ${if (enableShizukuMode) "已开启" else "已关闭"}")
 
         stop(context) // 先停止之前的模拟
 
@@ -60,14 +60,14 @@ object UnifiedMockLocationManager {
         currentLongitude = longitude
 
         // 检查基础权限状态（必须通过才能继续）
-        Log.d(TAG, "🔍 开始检查基础权限状态...")
+        Log.e(TAG, "🔍 开始检查基础权限状态...")
         val standardStatus = StandardMockLocationManager.checkMockLocationPermissions(context)
-        Log.d(TAG, "📊 基础权限检查结果: ${standardStatus.message}")
+        Log.e(TAG, "📊 基础权限检查结果: ${standardStatus.message}")
 
         // 检查模拟定位应用选择状态
-        Log.d(TAG, "🔍 检查模拟定位应用选择状态...")
+        Log.e(TAG, "🔍 检查模拟定位应用选择状态...")
         val isMockAppSelected = checkMockLocationAppSelected(context)
-        Log.d(TAG, "📊 模拟定位应用选择状态: ${if (isMockAppSelected) "已选择" else "未选择"}")
+        Log.e(TAG, "📊 模拟定位应用选择状态: ${if (isMockAppSelected) "已选择" else "未选择"}")
 
         if (standardStatus != MockLocationStatus.READY) {
             Log.e(TAG, "❌ 基础权限检查未通过，无法启动模拟定位")
@@ -87,24 +87,28 @@ object UnifiedMockLocationManager {
 
         // Priority Mode: Shizuku增强模式 (增强模式开启时优先尝试)
         if (enableShizukuMode) {
-            Log.d(TAG, "🔧 Shizuku增强模式已开启，优先尝试Shizuku模式...")
-            Log.d(TAG, "🔧 Shizuku状态检查结果: ${shizukuStatus.name} - ${shizukuStatus.message}")
+            Log.e(TAG, "🔧🔧🔧 Shizuku增强模式已开启，优先尝试Shizuku模式...")
+            Log.e(TAG, "🔧 Shizuku状态检查结果: ${shizukuStatus.name} - ${shizukuStatus.message}")
 
             when (shizukuStatus) {
                 ShizukuStatus.READY -> {
-                    Log.d(TAG, "🚀 Shizuku状态就绪，尝试启动Shizuku增强模式")
+                    Log.e(TAG, "🚀🚀🚀 Shizuku状态就绪，尝试启动Shizuku增强模式")
                     try {
-                        if (MockLocationManager.start(context, latitude, longitude)) {
+                        Log.e(TAG, "📞📞📞 即将调用MockLocationManager.start()")
+                        val result = MockLocationManager.start(context, latitude, longitude)
+                        Log.e(TAG, "📞📞📞 MockLocationManager.start()返回结果: $result")
+
+                        if (result) {
                             currentStrategy = MockLocationStrategy.SHIZUKU
                             isRunning = true
                             startMonitoring(context)
-                            Log.d(TAG, "✅ 成功使用Shizuku增强模式启动模拟定位")
+                            Log.e(TAG, "✅✅✅ 成功使用Shizuku增强模式启动模拟定位")
                             return MockLocationResult.Success(MockLocationStrategy.SHIZUKU)
                         } else {
-                            Log.w(TAG, "⚠️ Shizuku增强模式启动失败，将继续尝试其他模式")
+                            Log.e(TAG, "❌❌❌ Shizuku增强模式启动失败，将继续尝试其他模式")
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "❌ Shizuku增强模式启动异常: ${e.message}", e)
+                        Log.e(TAG, "❌❌❌ Shizuku增强模式启动异常: ${e.message}", e)
                     }
                 }
                 ShizukuStatus.NO_PERMISSION -> {
