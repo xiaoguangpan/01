@@ -37,6 +37,14 @@ object MockLocationManager {
         Log.e(TAG, "🔧 使用Shizuku增强模式（旧实现）")
 
         return try {
+            // 检查是否需要使用Shizuku特殊调用方式
+            Log.e(TAG, "🔧 检查Shizuku权限状态...")
+            if (Shizuku.checkSelfPermission() != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                Log.e(TAG, "❌ Shizuku权限不足，无法使用增强模式")
+                val permissionResult = false
+                return permissionResult
+            }
+
             // 使用旧的Shizuku实现进行位置模拟
             val result = startShizukuMockLocation(context, lat, lng)
             if (result) {
@@ -89,11 +97,13 @@ object MockLocationManager {
      * 使用旧的Shizuku实现进行位置模拟
      */
     private fun startShizukuMockLocation(context: Context, lat: Double, lng: Double): Boolean {
-        Log.e(TAG, "🔧 开始Shizuku增强模式位置模拟...")
+        Log.e(TAG, "🔧🔧🔧 开始Shizuku增强模式位置模拟...")
+        Log.e(TAG, "📍 目标坐标: lat=$lat, lng=$lng")
 
         return try {
             // 使用Shizuku权限添加测试提供者
             val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            Log.e(TAG, "✅ 获取LocationManager成功")
 
             // 为所有提供者添加测试提供者
             val providers = listOf(
@@ -105,6 +115,8 @@ object MockLocationManager {
             var successCount = 0
             for (provider in providers) {
                 try {
+                    Log.e(TAG, "🔧 开始设置提供者: $provider")
+
                     // 使用Shizuku权限调用系统API
                     locationManager.addTestProvider(
                         provider,
@@ -112,20 +124,26 @@ object MockLocationManager {
                         Criteria.POWER_LOW,
                         Criteria.ACCURACY_FINE
                     )
+                    Log.e(TAG, "✅ addTestProvider成功: $provider")
+
                     locationManager.setTestProviderEnabled(provider, true)
+                    Log.e(TAG, "✅ setTestProviderEnabled成功: $provider")
 
                     // 创建位置对象
-                    val location = android.location.Location(provider).apply {
+                    val location = Location(provider).apply {
                         latitude = lat
                         longitude = lng
                         accuracy = 1.0f
                         time = System.currentTimeMillis()
                         elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
                     }
+                    Log.e(TAG, "✅ Location对象创建成功: $provider")
 
                     locationManager.setTestProviderLocation(provider, location)
+                    Log.e(TAG, "✅ setTestProviderLocation成功: $provider")
+
                     successCount++
-                    Log.e(TAG, "✅ Shizuku增强模式: $provider 提供者设置成功")
+                    Log.e(TAG, "✅✅✅ Shizuku增强模式: $provider 提供者设置成功")
                 } catch (e: Exception) {
                     Log.e(TAG, "❌ Shizuku增强模式: $provider 提供者设置失败: ${e.message}")
                 }
