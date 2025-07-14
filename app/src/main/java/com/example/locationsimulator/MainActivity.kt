@@ -1486,6 +1486,23 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         addDebugMessage("🎯 地图坐标保持: BD09($targetLng, $targetLat)")
                         addDebugMessage("🎯 模拟坐标设置: WGS84($lngWgs, $latWgs)")
 
+                        // 立即验证模拟位置是否生效
+                        addDebugMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                        addDebugMessage("🔍 开始验证模拟位置是否真正生效...")
+
+                        // 延迟一下再验证，确保系统有时间处理
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            val isVerified = verifyMockLocation(context)
+                            if (isVerified) {
+                                addDebugMessage("✅ 验证成功：系统已获取到模拟位置")
+                                addDebugMessage("💡 第三方应用现在应该能获取到模拟位置了")
+                            } else {
+                                addDebugMessage("❌ 验证失败：系统未获取到模拟位置")
+                                addDebugMessage("💡 可能需要重启相关应用或检查权限")
+                            }
+                            addDebugMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                        }, 1000)
+
                         isSimulating = true
                         statusMessage = "模拟定位成功！策略：${result.strategy.displayName}，坐标：WGS84($lngWgs, $latWgs)"
 
@@ -1739,6 +1756,40 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     }
 
     /**
+     * 验证模拟位置是否生效
+     */
+    fun verifyMockLocation(context: Context): Boolean {
+        return try {
+            addDebugMessage("🔍 开始验证模拟位置是否生效...")
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+            val providers = listOf("gps", "network")
+            var hasValidLocation = false
+
+            for (provider in providers) {
+                try {
+                    val location = locationManager.getLastKnownLocation(provider)
+                    if (location != null) {
+                        addDebugMessage("📍 $provider 提供者位置: lat=${location.latitude}, lng=${location.longitude}")
+                        addDebugMessage("📍 $provider 位置时间: ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(location.time))}")
+                        addDebugMessage("📍 $provider 位置精度: ${location.accuracy}m")
+                        hasValidLocation = true
+                    } else {
+                        addDebugMessage("⚠️ $provider 提供者无位置信息")
+                    }
+                } catch (e: Exception) {
+                    addDebugMessage("❌ 获取 $provider 位置失败: ${e.message}")
+                }
+            }
+
+            hasValidLocation
+        } catch (e: Exception) {
+            addDebugMessage("❌ 验证模拟位置异常: ${e.message}")
+            false
+        }
+    }
+
+    /**
      * 直接实现Shizuku增强模式 - 绕过APK缓存问题
      */
     fun directShizukuMockLocation(context: Context, lat: Double, lng: Double): Boolean {
@@ -1761,19 +1812,33 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
             val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
             addDebugMessage("✅ LocationManager获取成功")
 
-            // 设置所有位置提供者
-            val providers = listOf("gps", "network", "passive")
+            // 设置主要位置提供者（跳过passive，因为它不能被模拟）
+            val providers = listOf("gps", "network")
             var successCount = 0
 
             for (provider in providers) {
                 try {
                     addDebugMessage("🔧 设置提供者: $provider")
 
-                    // 添加测试提供者
+                    // 先尝试移除已存在的测试提供者
+                    try {
+                        locationManager.removeTestProvider(provider)
+                        addDebugMessage("🗑️ 移除旧的测试提供者: $provider")
+                    } catch (e: Exception) {
+                        // 忽略移除失败，可能本来就不存在
+                    }
+
+                    // 添加测试提供者 - 使用更完整的参数
                     locationManager.addTestProvider(
                         provider,
-                        false, false, false, false, false, true, true,
-                        Criteria.POWER_LOW,
+                        true,  // requiresNetwork
+                        false, // requiresSatellite
+                        false, // requiresCell
+                        false, // hasMonetaryCost
+                        true,  // supportsAltitude
+                        true,  // supportsSpeed
+                        true,  // supportsBearing
+                        Criteria.POWER_MEDIUM,
                         Criteria.ACCURACY_FINE
                     )
                     addDebugMessage("✅ addTestProvider成功: $provider")
@@ -1782,19 +1847,33 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                     locationManager.setTestProviderEnabled(provider, true)
                     addDebugMessage("✅ setTestProviderEnabled成功: $provider")
 
-                    // 创建位置对象
+                    // 创建更完整的位置对象
+                    val currentTime = System.currentTimeMillis()
                     val location = Location(provider).apply {
                         latitude = lat
                         longitude = lng
-                        accuracy = 1.0f
-                        time = System.currentTimeMillis()
+                        accuracy = if (provider == "gps") 3.0f else 10.0f // GPS更精确
+                        altitude = 50.0 // 海拔
+                        bearing = 0.0f  // 方向
+                        speed = 0.0f    // 速度
+                        time = currentTime
                         elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+
+                        // 添加额外信息
+                        extras = android.os.Bundle().apply {
+                            putInt("satellites", if (provider == "gps") 8 else 0)
+                        }
                     }
-                    addDebugMessage("✅ Location对象创建成功: $provider")
+                    addDebugMessage("✅ Location对象创建成功: $provider (精度: ${location.accuracy}m)")
 
                     // 设置测试位置
                     locationManager.setTestProviderLocation(provider, location)
                     addDebugMessage("✅ setTestProviderLocation成功: $provider")
+
+                    // 立即再次设置位置以确保生效
+                    Thread.sleep(100)
+                    locationManager.setTestProviderLocation(provider, location)
+                    addDebugMessage("✅ 二次设置位置成功: $provider")
 
                     successCount++
                     addDebugMessage("✅✅✅ 直接增强模式: $provider 提供者设置成功")
@@ -1806,6 +1885,9 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
             val success = successCount > 0
             if (success) {
                 addDebugMessage("🎯🎯🎯 直接增强模式启动成功！设置了 $successCount/${providers.size} 个提供者")
+
+                // 启动持续位置更新
+                startContinuousLocationUpdate(context, lat, lng, locationManager, providers)
             } else {
                 addDebugMessage("❌❌❌ 直接增强模式启动失败：所有提供者设置失败")
             }
@@ -1814,6 +1896,67 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         } catch (e: Exception) {
             addDebugMessage("❌❌❌ 直接增强模式异常: ${e.javaClass.simpleName} - ${e.message}")
             false
+        }
+    }
+
+    /**
+     * 启动持续位置更新 - 确保第三方应用能持续获取模拟位置
+     */
+    private fun startContinuousLocationUpdate(
+        context: Context,
+        lat: Double,
+        lng: Double,
+        locationManager: LocationManager,
+        providers: List<String>
+    ) {
+        addDebugMessage("🔄 启动持续位置更新机制...")
+
+        // 使用协程在后台持续更新位置
+        viewModelScope.launch {
+            repeat(30) { // 更新30次，每次间隔2秒，总共1分钟
+                delay(2000) // 等待2秒
+
+                if (!isSimulating) {
+                    addDebugMessage("🛑 模拟定位已停止，终止持续更新")
+                    return@launch
+                }
+
+                try {
+                    for (provider in providers) {
+                        try {
+                            val currentTime = System.currentTimeMillis()
+                            val location = Location(provider).apply {
+                                latitude = lat
+                                longitude = lng
+                                accuracy = if (provider == "gps") 3.0f else 10.0f
+                                altitude = 50.0
+                                bearing = 0.0f
+                                speed = 0.0f
+                                time = currentTime
+                                elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+
+                                extras = android.os.Bundle().apply {
+                                    putInt("satellites", if (provider == "gps") 8 else 0)
+                                }
+                            }
+
+                            locationManager.setTestProviderLocation(provider, location)
+
+                            if (it == 0) { // 只在第一次更新时输出日志
+                                addDebugMessage("🔄 持续更新位置: $provider")
+                            }
+                        } catch (e: Exception) {
+                            if (it == 0) {
+                                addDebugMessage("❌ 持续更新失败: $provider - ${e.message}")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    addDebugMessage("❌ 持续更新异常: ${e.message}")
+                }
+            }
+
+            addDebugMessage("✅ 持续位置更新完成（共30次）")
         }
     }
 
