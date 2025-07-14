@@ -72,38 +72,6 @@ object MockLocationManager {
             val fallbackResult = false
             fallbackResult
         }
-
-        /*
-        return try {
-            // 绑定UserService
-            if (!ShizukuUserServiceManager.isServiceBound()) {
-                Log.e(TAG, "🔗 绑定UserService...")
-                if (!ShizukuUserServiceManager.bindUserService(context)) {
-                    Log.e(TAG, "❌ UserService绑定失败")
-                    return userServiceResult
-                }
-            }
-
-            // 启动位置模拟
-            val result = ShizukuUserServiceManager.startMockLocation(lat, lng)
-            if (result) {
-                isRunning = true
-                Log.e(TAG, "🎯🎯🎯 UserService位置模拟启动成功！")
-            } else {
-                Log.e(TAG, "❌❌❌ UserService位置模拟启动失败")
-            }
-            result
-
-        } catch (e: Exception) {
-            Log.e(TAG, "❌❌❌ UserService模式异常: ${e.javaClass.simpleName} - ${e.message}", e)
-            userServiceResult
-        }
-        */
-
-        // UserService模式已经在上面处理完成
-        Log.e(TAG, "🎯🎯🎯 MockLocationManager.start() 完成")
-        val finalResult = true
-        return finalResult
     }
 
     /**
