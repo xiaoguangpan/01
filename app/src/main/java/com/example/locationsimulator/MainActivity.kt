@@ -1312,11 +1312,19 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         addDebugMessage("🌍 转换为WGS84坐标: ($lngWgs, $latWgs)")
                         addDebugMessage("🎯 坐标传递链路: 地理编码API → 坐标转换 → 模拟定位")
 
-                        // 使用统一模拟定位管理器
-                        addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start() [地理编码]")
-                        addDebugMessage("🔥 参数: context=$context, lat=$latWgs, lng=$lngWgs, enableShizuku=$isShizukuEnhancedModeEnabled")
-                        val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs, isShizukuEnhancedModeEnabled)
-                        addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $result")
+                        // 直接实现增强模式 - 绕过缓存问题
+                        if (isShizukuEnhancedModeEnabled) {
+                            addDebugMessage("🔥🔥🔥 使用直接增强模式实现 [地理编码]")
+                            addDebugMessage("🔥 参数: lat=$latWgs, lng=$lngWgs")
+                            val result = directShizukuMockLocation(context, latWgs, lngWgs)
+                            addDebugMessage("🔥🔥🔥 直接增强模式结果: $result")
+                        } else {
+                            // 使用统一模拟定位管理器
+                            addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start() [地理编码]")
+                            addDebugMessage("🔥 参数: context=$context, lat=$latWgs, lng=$lngWgs, enableShizuku=$isShizukuEnhancedModeEnabled")
+                            val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs, isShizukuEnhancedModeEnabled)
+                            addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $result")
+                        }
 
                         when (result) {
                             is MockLocationResult.Success -> {
@@ -1432,11 +1440,25 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 addDebugMessage("📍 模拟坐标: WGS84($lngWgs, $latWgs)")
                 Log.d("LocationViewModel", "Starting comprehensive mock location: lng=$lngWgs, lat=$latWgs")
 
-                // 使用统一模拟定位管理器
-                addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start() [坐标模式]")
-                addDebugMessage("🔥 参数: context=$context, lat=$latWgs, lng=$lngWgs, enableShizuku=$isShizukuEnhancedModeEnabled")
-                val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs, isShizukuEnhancedModeEnabled)
-                addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $result")
+                // 直接实现增强模式 - 绕过缓存问题
+                val result = if (isShizukuEnhancedModeEnabled) {
+                    addDebugMessage("🔥🔥🔥 使用直接增强模式实现 [坐标模式]")
+                    addDebugMessage("🔥 参数: lat=$latWgs, lng=$lngWgs")
+                    val directResult = directShizukuMockLocation(context, latWgs, lngWgs)
+                    addDebugMessage("🔥🔥🔥 直接增强模式结果: $directResult")
+                    if (directResult) {
+                        MockLocationResult.Success(MockLocationStrategy.SHIZUKU)
+                    } else {
+                        MockLocationResult.Failure(MockLocationStatus.SHIZUKU_PERMISSION_DENIED, emptyList())
+                    }
+                } else {
+                    // 使用统一模拟定位管理器
+                    addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start() [坐标模式]")
+                    addDebugMessage("🔥 参数: context=$context, lat=$latWgs, lng=$lngWgs, enableShizuku=$isShizukuEnhancedModeEnabled")
+                    val unifiedResult = UnifiedMockLocationManager.start(context, latWgs, lngWgs, isShizukuEnhancedModeEnabled)
+                    addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $unifiedResult")
+                    unifiedResult
+                }
 
                 when (result) {
                     is MockLocationResult.Success -> {
@@ -1979,6 +2001,85 @@ class MainActivity : ComponentActivity() {
                     android.widget.Toast.LENGTH_LONG
                 ).show()
             }
+        }
+    }
+
+    /**
+     * 直接实现Shizuku增强模式 - 绕过APK缓存问题
+     */
+    private fun directShizukuMockLocation(context: Context, lat: Double, lng: Double): Boolean {
+        addDebugMessage("🔥🔥🔥 直接增强模式实现开始")
+        addDebugMessage("📍 目标坐标: lat=$lat, lng=$lng")
+
+        return try {
+            // 检查Shizuku权限
+            addDebugMessage("🔐 检查Shizuku权限...")
+            val permissionStatus = Shizuku.checkSelfPermission()
+            addDebugMessage("🔐 Shizuku权限状态: $permissionStatus")
+
+            if (permissionStatus != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                addDebugMessage("❌ Shizuku权限不足")
+                return false
+            }
+
+            // 获取LocationManager
+            addDebugMessage("🔧 获取LocationManager...")
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+            addDebugMessage("✅ LocationManager获取成功")
+
+            // 设置所有位置提供者
+            val providers = listOf("gps", "network", "passive")
+            var successCount = 0
+
+            for (provider in providers) {
+                try {
+                    addDebugMessage("🔧 设置提供者: $provider")
+
+                    // 添加测试提供者
+                    locationManager.addTestProvider(
+                        provider,
+                        false, false, false, false, false, true, true,
+                        android.location.Criteria.POWER_LOW,
+                        android.location.Criteria.ACCURACY_FINE
+                    )
+                    addDebugMessage("✅ addTestProvider成功: $provider")
+
+                    // 启用测试提供者
+                    locationManager.setTestProviderEnabled(provider, true)
+                    addDebugMessage("✅ setTestProviderEnabled成功: $provider")
+
+                    // 创建位置对象
+                    val location = android.location.Location(provider).apply {
+                        latitude = lat
+                        longitude = lng
+                        accuracy = 1.0f
+                        time = System.currentTimeMillis()
+                        elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+                    }
+                    addDebugMessage("✅ Location对象创建成功: $provider")
+
+                    // 设置测试位置
+                    locationManager.setTestProviderLocation(provider, location)
+                    addDebugMessage("✅ setTestProviderLocation成功: $provider")
+
+                    successCount++
+                    addDebugMessage("✅✅✅ 直接增强模式: $provider 提供者设置成功")
+                } catch (e: Exception) {
+                    addDebugMessage("❌ 直接增强模式: $provider 提供者设置失败: ${e.message}")
+                }
+            }
+
+            val success = successCount > 0
+            if (success) {
+                addDebugMessage("🎯🎯🎯 直接增强模式启动成功！设置了 $successCount/$providers.size 个提供者")
+            } else {
+                addDebugMessage("❌❌❌ 直接增强模式启动失败：所有提供者设置失败")
+            }
+
+            success
+        } catch (e: Exception) {
+            addDebugMessage("❌❌❌ 直接增强模式异常: ${e.javaClass.simpleName} - ${e.message}")
+            false
         }
     }
 }
