@@ -1496,6 +1496,11 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                             if (isVerified) {
                                 addDebugMessage("✅ 验证成功：系统已获取到模拟位置")
                                 addDebugMessage("💡 第三方应用现在应该能获取到模拟位置了")
+                                addDebugMessage("🔄 建议操作：")
+                                addDebugMessage("  1. 重启目标应用（百度地图、高德地图、钉钉等）")
+                                addDebugMessage("  2. 或者清除目标应用的缓存")
+                                addDebugMessage("  3. 开启飞行模式3秒后关闭（重置网络定位）")
+                                addDebugMessage("⚡ 强制覆盖机制已启动，每秒更新位置对抗反检测")
                             } else {
                                 addDebugMessage("❌ 验证失败：系统未获取到模拟位置")
                                 addDebugMessage("💡 可能需要重启相关应用或检查权限")
@@ -1814,9 +1819,23 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
             // 设置主要位置提供者（跳过passive，因为它不能被模拟）
             val providers = listOf("gps", "network")
+
+            // 尝试添加融合定位提供者（如果存在）
+            val allProviders = mutableListOf<String>().apply {
+                addAll(providers)
+                // 尝试添加融合定位
+                try {
+                    if (locationManager.getProvider("fused") != null) {
+                        add("fused")
+                        addDebugMessage("🔍 发现融合定位提供者，将一并覆盖")
+                    }
+                } catch (e: Exception) {
+                    // 融合定位可能不存在
+                }
+            }
             var successCount = 0
 
-            for (provider in providers) {
+            for (provider in allProviders) {
                 try {
                     addDebugMessage("🔧 设置提供者: $provider")
 
@@ -1847,7 +1866,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                     locationManager.setTestProviderEnabled(provider, true)
                     addDebugMessage("✅ setTestProviderEnabled成功: $provider")
 
-                    // 创建更完整的位置对象
+                    // 创建更完整的位置对象 - 增强反检测
                     val currentTime = System.currentTimeMillis()
                     val location = Location(provider).apply {
                         latitude = lat
@@ -1859,10 +1878,28 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         time = currentTime
                         elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
 
-                        // 添加额外信息
+                        // 添加额外信息 - 模拟真实GPS数据
                         extras = android.os.Bundle().apply {
                             putInt("satellites", if (provider == "gps") 8 else 0)
+                            putFloat("hdop", 1.0f) // 水平精度因子
+                            putFloat("vdop", 1.0f) // 垂直精度因子
+                            putFloat("pdop", 1.4f) // 位置精度因子
+                            putBoolean("network_location", provider == "network")
+                            putString("provider", provider)
                         }
+                    }
+
+                    // 关键：尝试移除Mock标记（如果可能）
+                    try {
+                        // 使用反射移除isMock标记
+                        val field = Location::class.java.getDeclaredField("mExtras")
+                        field.isAccessible = true
+                        val extras = field.get(location) as? android.os.Bundle
+                        extras?.remove("mockLocation")
+                        extras?.remove("mock")
+                        extras?.putBoolean("real", true)
+                    } catch (e: Exception) {
+                        // 忽略反射失败
                     }
                     addDebugMessage("✅ Location对象创建成功: $provider (精度: ${location.accuracy}m)")
 
@@ -1884,10 +1921,13 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
             val success = successCount > 0
             if (success) {
-                addDebugMessage("🎯🎯🎯 直接增强模式启动成功！设置了 $successCount/${providers.size} 个提供者")
+                addDebugMessage("🎯🎯🎯 直接增强模式启动成功！设置了 $successCount/${allProviders.size} 个提供者")
 
-                // 启动持续位置更新
-                startContinuousLocationUpdate(context, lat, lng, locationManager, providers)
+                // 启动持续位置更新 - 对抗反检测
+                startContinuousLocationUpdate(context, lat, lng, locationManager, allProviders)
+
+                // 启动强制覆盖机制 - 每秒强制更新
+                startAggressiveLocationOverride(context, lat, lng, locationManager, allProviders)
             } else {
                 addDebugMessage("❌❌❌ 直接增强模式启动失败：所有提供者设置失败")
             }
@@ -1913,7 +1953,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
         // 使用协程在后台持续更新位置
         viewModelScope.launch {
-            repeat(30) { // 更新30次，每次间隔2秒，总共1分钟
+            repeat(60) { // 更新60次，每次间隔2秒，总共2分钟
                 delay(2000) // 等待2秒
 
                 if (!isSimulating) {
@@ -1956,7 +1996,74 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 }
             }
 
-            addDebugMessage("✅ 持续位置更新完成（共30次）")
+            addDebugMessage("✅ 持续位置更新完成（共60次）")
+        }
+    }
+
+    /**
+     * 强制覆盖机制 - 每秒强制更新位置，对抗反检测
+     */
+    private fun startAggressiveLocationOverride(
+        context: Context,
+        lat: Double,
+        lng: Double,
+        locationManager: LocationManager,
+        providers: List<String>
+    ) {
+        addDebugMessage("⚡ 启动强制覆盖机制 - 对抗反检测...")
+
+        // 使用协程每秒强制更新
+        viewModelScope.launch {
+            repeat(300) { // 更新300次，每次间隔1秒，总共5分钟
+                delay(1000) // 等待1秒
+
+                if (!isSimulating) {
+                    addDebugMessage("🛑 模拟定位已停止，终止强制覆盖")
+                    return@launch
+                }
+
+                try {
+                    for (provider in providers) {
+                        try {
+                            // 创建带有随机微调的位置（模拟真实GPS漂移）
+                            val randomOffset = 0.000001 * (Math.random() - 0.5) // ±0.1米的随机偏移
+                            val currentTime = System.currentTimeMillis()
+
+                            val location = Location(provider).apply {
+                                latitude = lat + randomOffset
+                                longitude = lng + randomOffset
+                                accuracy = if (provider == "gps") (2.0f + Math.random().toFloat()) else (8.0f + Math.random().toFloat() * 4)
+                                altitude = 50.0 + Math.random() * 10 // 随机海拔变化
+                                bearing = 0.0f
+                                speed = 0.0f
+                                time = currentTime
+                                elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+
+                                extras = android.os.Bundle().apply {
+                                    putInt("satellites", if (provider == "gps") (7 + (Math.random() * 3).toInt()) else 0)
+                                    putFloat("hdop", 0.8f + Math.random().toFloat() * 0.4f)
+                                    putBoolean("real", true)
+                                }
+                            }
+
+                            // 强制设置位置
+                            locationManager.setTestProviderLocation(provider, location)
+
+                            if (it % 10 == 0) { // 每10秒输出一次日志
+                                addDebugMessage("⚡ 强制覆盖: $provider (第${it + 1}次)")
+                            }
+                        } catch (e: Exception) {
+                            if (it % 30 == 0) { // 每30秒输出一次错误
+                                addDebugMessage("❌ 强制覆盖失败: $provider - ${e.message}")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    addDebugMessage("❌ 强制覆盖异常: ${e.message}")
+                }
+            }
+
+            addDebugMessage("✅ 强制覆盖机制完成（共300次）")
         }
     }
 
