@@ -108,6 +108,21 @@ object UnifiedMockLocationManager {
                             currentStrategy = MockLocationStrategy.SHIZUKU
                             isRunning = true
                             startMonitoring(context)
+
+                            // 启动位置持续监控
+                            LocationPersistenceManager.getInstance().startPersistenceMonitoring(
+                                context, latitude, longitude, MockLocationStrategy.SHIZUKU
+                            )
+
+                            // 启动WiFi干扰监控
+                            WiFiInterferenceHandler.getInstance().startWifiInterferenceMonitoring(
+                                context, { hasInterference ->
+                                    if (hasInterference) {
+                                        Log.w(TAG, "⚠️ 检测到WiFi干扰，增强位置监控")
+                                    }
+                                }
+                            )
+
                             Log.e(TAG, "✅✅✅ 成功使用Shizuku增强模式启动模拟定位")
                             return MockLocationResult.Success(MockLocationStrategy.SHIZUKU)
                         } else {
@@ -146,6 +161,21 @@ object UnifiedMockLocationManager {
             currentStrategy = MockLocationStrategy.ANTI_DETECTION
             isRunning = true
             startMonitoring(context)
+
+            // 启动位置持续监控
+            LocationPersistenceManager.getInstance().startPersistenceMonitoring(
+                context, latitude, longitude, MockLocationStrategy.ANTI_DETECTION
+            )
+
+            // 启动WiFi干扰监控
+            WiFiInterferenceHandler.getInstance().startWifiInterferenceMonitoring(
+                context, { hasInterference ->
+                    if (hasInterference) {
+                        Log.w(TAG, "⚠️ 检测到WiFi干扰，增强反检测处理")
+                    }
+                }
+            )
+
             Log.d(TAG, "✅ 使用高级反检测模式")
             return MockLocationResult.Success(MockLocationStrategy.ANTI_DETECTION)
         }
@@ -156,6 +186,21 @@ object UnifiedMockLocationManager {
             currentStrategy = MockLocationStrategy.STANDARD
             isRunning = true
             startMonitoring(context)
+
+            // 启动位置持续监控
+            LocationPersistenceManager.getInstance().startPersistenceMonitoring(
+                context, latitude, longitude, MockLocationStrategy.STANDARD
+            )
+
+            // 启动WiFi干扰监控（钉钉模式）
+            WiFiInterferenceHandler.getInstance().startWifiInterferenceMonitoring(
+                context, { hasInterference ->
+                    if (hasInterference) {
+                        Log.w(TAG, "⚠️ 检测到WiFi干扰，建议关闭WiFi或使用增强模式")
+                    }
+                }, dingTalkMode = true // 标准模式通常用于钉钉
+            )
+
             Log.d(TAG, "✅ 使用标准模式")
             return MockLocationResult.Success(MockLocationStrategy.STANDARD)
         } else {
@@ -206,7 +251,13 @@ object UnifiedMockLocationManager {
         
         synchronized(this) {
             isRunning = false
-            
+
+            // 停止位置持续监控
+            LocationPersistenceManager.getInstance().stopPersistenceMonitoring()
+
+            // 停止WiFi干扰监控
+            WiFiInterferenceHandler.getInstance().stopWifiInterferenceMonitoring()
+
             // 停止监控
             executor?.let { exec ->
                 try {
@@ -220,7 +271,7 @@ object UnifiedMockLocationManager {
                 }
             }
             executor = null
-            
+
             // 根据当前策略停止相应的服务
             when (currentStrategy) {
                 MockLocationStrategy.ANTI_DETECTION -> AntiDetectionMockLocationManager.stop(context)
@@ -229,7 +280,7 @@ object UnifiedMockLocationManager {
                 MockLocationStrategy.ENHANCED -> StandardMockLocationManager.stop(context) // 兼容性处理
                 MockLocationStrategy.NONE -> { /* 无需操作 */ }
             }
-            
+
             currentStrategy = MockLocationStrategy.NONE
         }
 
@@ -245,10 +296,13 @@ object UnifiedMockLocationManager {
      */
     fun updateLocation(context: Context, latitude: Double, longitude: Double) {
         if (!isRunning) return
-        
+
         currentLatitude = latitude
         currentLongitude = longitude
-        
+
+        // 更新位置持续监控的目标位置
+        LocationPersistenceManager.getInstance().updateTargetLocation(latitude, longitude)
+
         when (currentStrategy) {
             MockLocationStrategy.ANTI_DETECTION -> AntiDetectionMockLocationManager.updateLocation(latitude, longitude)
             MockLocationStrategy.STANDARD -> StandardMockLocationManager.updateLocation(latitude, longitude)
@@ -256,7 +310,7 @@ object UnifiedMockLocationManager {
             MockLocationStrategy.SHIZUKU -> { /* Shizuku模式通过定时任务自动更新 */ }
             MockLocationStrategy.NONE -> { /* 无需操作 */ }
         }
-        
+
         Log.d(TAG, "📍 更新模拟位置: $latitude, $longitude")
     }
     

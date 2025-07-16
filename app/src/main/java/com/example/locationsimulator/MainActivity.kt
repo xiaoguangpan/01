@@ -79,6 +79,9 @@ import com.example.locationsimulator.util.AntiDetectionMockLocationManager
 import com.example.locationsimulator.util.ShizukuStatus
 import com.example.locationsimulator.util.ShizukuStatusMonitor
 import com.example.locationsimulator.util.MockLocationStatus
+import com.example.locationsimulator.util.LocationPersistenceManager
+import com.example.locationsimulator.util.WiFiInterferenceHandler
+import com.example.locationsimulator.util.AppSpecificHandler
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CoroutineScope
@@ -1203,6 +1206,18 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         addDebugMessage("开始模拟定位...")
         statusMessage = "正在处理..."
 
+        // 显示已安装的目标应用
+        val installedApps = AppSpecificHandler.getInstalledTargetApps(context)
+        if (installedApps.isNotEmpty()) {
+            addDebugMessage("📱 检测到已安装的目标应用:")
+            installedApps.forEach { app ->
+                addDebugMessage("  • ${app.displayName} (${app.recommendedStrategy})")
+                app.specialHandling?.let { handling ->
+                    addDebugMessage("    特殊处理: $handling")
+                }
+            }
+        }
+
         if (inputMode == InputMode.ADDRESS) {
             // 地址模式：优先使用已选择建议的坐标，避免重复地理编码
             addDebugMessage("使用地址模式: '$addressQuery'")
@@ -1559,6 +1574,15 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     fun stopSimulation(context: Context) {
         addDebugMessage("🛑 停止系统级模拟定位...")
         try {
+            // 显示监控统计信息
+            val persistenceManager = LocationPersistenceManager.getInstance()
+            val wifiHandler = WiFiInterferenceHandler.getInstance()
+            if (persistenceManager.isMonitoring()) {
+                addDebugMessage("📊 位置重置次数: ${persistenceManager.getResetCount()}")
+                addDebugMessage("📶 WiFi状态: ${wifiHandler.getWifiStatusInfo()}")
+                addDebugMessage("🎯 目标应用: ${persistenceManager.getCurrentTargetApp() ?: "通用"}")
+            }
+
             UnifiedMockLocationManager.stop(context)
             isSimulating = false
             statusMessage = null
