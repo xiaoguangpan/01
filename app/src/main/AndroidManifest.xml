@@ -71,7 +71,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="定红"
-            android:theme="@style/Theme.LocationSimulator.NoActionBar">
+            android:theme="@style/Theme.LocationSimulator">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
