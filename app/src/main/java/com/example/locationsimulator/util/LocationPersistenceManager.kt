@@ -207,7 +207,7 @@ class LocationPersistenceManager private constructor() {
                 checkAndResetLocation(context)
                 
                 // 监控提供商状态
-                monitorProviderStatus()
+                monitorProviderStatus(context)
                 
             } catch (e: Exception) {
                 Log.e(TAG, "❌ 主监控任务异常: ${e.message}", e)
@@ -238,15 +238,15 @@ class LocationPersistenceManager private constructor() {
             while (isMonitoring && currentAppPackage == DINGTALK_PACKAGE) {
                 try {
                     // 每250ms更新一次位置，持续2分钟
-                    repeat(480) { // 2分钟 = 120秒 * 4次/秒
-                        if (!isMonitoring) break
-                        
+                    var updateCount = 0
+                    while (updateCount < 480 && isMonitoring) { // 2分钟 = 120秒 * 4次/秒
                         updateLocationWithNoise(context)
                         delay(250)
-                        
-                        if (it % 40 == 0) { // 每10秒输出一次日志
-                            Log.d(TAG, "⚡ 钉钉超频更新: 第${it + 1}次")
+
+                        if (updateCount % 40 == 0) { // 每10秒输出一次日志
+                            Log.d(TAG, "⚡ 钉钉超频更新: 第${updateCount + 1}次")
                         }
+                        updateCount++
                     }
                     
                     Log.d(TAG, "✅ 钉钉超频更新完成，切换到正常监控")
@@ -278,10 +278,11 @@ class LocationPersistenceManager private constructor() {
                     forceResetLocation(context)
                     
                     // 持续高频更新10秒
-                    repeat(40) { // 10秒 * 4次/秒
-                        if (!isMonitoring) break
+                    var updateCount = 0
+                    while (updateCount < 40 && isMonitoring) { // 10秒 * 4次/秒
                         updateLocationWithNoise(context)
                         delay(250)
+                        updateCount++
                     }
                     
                     // 等待10秒再进行下一轮
@@ -377,7 +378,7 @@ class LocationPersistenceManager private constructor() {
     /**
      * 监控提供商状态
      */
-    private fun monitorProviderStatus() {
+    private fun monitorProviderStatus(context: Context) {
         try {
             val locationManager = this.locationManager ?: return
 
