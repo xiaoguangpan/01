@@ -1,26 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Base application theme -->
-    <style name="Theme.LocationSimulator" parent="android:Theme.Material.Light">
-        <!-- Primary brand color -->
-        <item name="android:colorPrimary">#2196F3</item>
-        <item name="android:colorPrimaryDark">#1976D2</item>
-        <item name="android:colorAccent">#E91E63</item>
-        <!-- Status bar color -->
-        <item name="android:statusBarColor">?android:attr/colorPrimaryDark</item>
-        <!-- 自定义主题颜色 -->
-    </style>
-
-    <!-- NoActionBar theme for MainActivity -->
-    <style name="Theme.LocationSimulator.NoActionBar" parent="android:Theme.Material.Light.NoActionBar">
-        <!-- Primary brand color -->
-        <item name="android:colorPrimary">#2196F3</item>
-        <item name="android:colorPrimaryDark">#1976D2</item>
-        <item name="android:colorAccent">#E91E63</item>
-        <!-- Status bar color -->
-        <item name="android:statusBarColor">?android:attr/colorPrimaryDark</item>
-        <!-- 隐藏系统标题栏以增大地图显示区域 -->
-        <item name="android:windowActionBar">false</item>
-        <item name="android:windowNoTitle">true</item>
+    <style name="Theme.LocationSimulator" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/teal_200</item>
+        <item name="colorSecondaryVariant">@color/teal_700</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <!-- Customize your theme here. -->
     </style>
 </resources>
