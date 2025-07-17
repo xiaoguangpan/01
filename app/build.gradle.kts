@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("kotlin-kapt")
 }
 
 android {
@@ -43,10 +44,7 @@ android {
         }
     }
 
-    // 启用AIDL支持
-    buildFeatures {
-        aidl = true
-    }
+    // 移除AIDL支持（不再需要Shizuku）
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
@@ -91,9 +89,10 @@ dependencies {
     // 百度地图SDK - 使用JitPack上的版本（解决官方Maven仓库POM问题）
     implementation("com.github.ipcjs.baidu-map-sdk:g01:g01_3.0.5")
 
-    // Shizuku API for system-level access
-    implementation("dev.rikka.shizuku:api:13.1.5")
-    implementation("dev.rikka.shizuku:provider:13.1.5")
+    // Room数据库 - 用于位置收藏功能
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

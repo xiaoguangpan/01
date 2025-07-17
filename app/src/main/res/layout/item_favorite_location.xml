@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="2dp"
+    android:foreground="?android:attr/selectableItemBackground">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <!-- 位置信息 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <!-- 收藏名称 -->
+            <TextView
+                android:id="@+id/textFavoriteName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="收藏位置名称"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <!-- 地址 -->
+            <TextView
+                android:id="@+id/textFavoriteAddress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="详细地址信息"
+                android:textSize="14sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginTop="4dp"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <!-- 坐标 -->
+            <TextView
+                android:id="@+id/textFavoriteCoordinates"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="113.123456, 22.123456"
+                android:textSize="12sp"
+                android:textColor="@color/text_hint"
+                android:layout_marginTop="2dp"
+                android:fontFamily="monospace" />
+
+            <!-- 使用信息 -->
+            <TextView
+                android:id="@+id/textFavoriteInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="使用0次 • 12-25 14:30"
+                android:textSize="11sp"
+                android:textColor="@color/text_hint"
+                android:layout_marginTop="4dp" />
+
+        </LinearLayout>
+
+        <!-- 操作按钮 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="8dp">
+
+            <!-- 编辑按钮 -->
+            <ImageButton
+                android:id="@+id/buttonEditFavorite"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_edit"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="编辑"
+                android:layout_marginBottom="4dp" />
+
+            <!-- 删除按钮 -->
+            <ImageButton
+                android:id="@+id/buttonDeleteFavorite"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_delete"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="删除" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

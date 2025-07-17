@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_sort_by_frequency"
+        android:title="按使用频率排序"
+        android:icon="@drawable/ic_sort_frequency"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_sort_by_time"
+        android:title="按时间排序"
+        android:icon="@drawable/ic_sort_time"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_clear_all"
+        android:title="清空所有收藏"
+        android:icon="@drawable/ic_clear_all"
+        app:showAsAction="never" />
+
+</menu>

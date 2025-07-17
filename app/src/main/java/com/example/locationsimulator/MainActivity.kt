@@ -79,9 +79,8 @@ import com.example.locationsimulator.util.AntiDetectionMockLocationManager
 import com.example.locationsimulator.util.ShizukuStatus
 import com.example.locationsimulator.util.ShizukuStatusMonitor
 import com.example.locationsimulator.util.MockLocationStatus
-import com.example.locationsimulator.util.LocationPersistenceManager
-import com.example.locationsimulator.util.WiFiInterferenceHandler
-import com.example.locationsimulator.util.AppSpecificHandler
+import com.example.locationsimulator.repository.FavoriteLocationRepository
+import com.example.locationsimulator.util.SimplifiedMockLocationManager
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CoroutineScope
