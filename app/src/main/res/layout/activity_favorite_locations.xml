@@ -35,10 +35,10 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="在主界面点击"收藏当前位置"来添加收藏"
-            android:textSize="14sp"
+            android:gravity="center"
+            android:text="在主界面点击收藏当前位置来添加收藏"
             android:textColor="@color/text_hint"
-            android:gravity="center" />
+            android:textSize="14sp" />
 
     </LinearLayout>
 
