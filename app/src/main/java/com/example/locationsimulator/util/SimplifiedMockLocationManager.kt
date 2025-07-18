@@ -95,18 +95,32 @@ object SimplifiedMockLocationManager {
      */
     private fun checkMockLocationAppSelected(context: Context): Boolean {
         return try {
-            // 检查开发者选项中是否选择了模拟定位应用
-            val mockLocationApp = Settings.Secure.getString(
-                context.contentResolver,
-                Settings.Secure.ALLOW_MOCK_LOCATION
-            )
-            
-            // Android 6.0+ 需要在开发者选项中选择模拟定位应用
-            val packageName = context.packageName
-            mockLocationApp == packageName || mockLocationApp == "1"
+            // Android 6.0+的检测方式
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                // 尝试使用AppOpsManager检查模拟定位权限
+                val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+                val mode = appOpsManager.checkOpNoThrow(
+                    android.app.AppOpsManager.OPSTR_MOCK_LOCATION,
+                    android.os.Process.myUid(),
+                    context.packageName
+                )
+                val result = mode == android.app.AppOpsManager.MODE_ALLOWED
+                Log.d(TAG, "🔍 AppOps检查结果: $result (mode: $mode)")
+                return result
+            } else {
+                // Android 6.0以下的检测方式
+                val mockLocationApp = Settings.Secure.getString(
+                    context.contentResolver,
+                    Settings.Secure.ALLOW_MOCK_LOCATION
+                )
+                val result = mockLocationApp == "1"
+                Log.d(TAG, "🔍 Settings检查结果: $result (value: $mockLocationApp)")
+                return result
+            }
         } catch (e: Exception) {
             Log.w(TAG, "检查模拟定位应用状态失败: ${e.message}")
-            false
+            // 如果检查失败，尝试直接启动看是否有权限
+            return true
         }
     }
     

@@ -18,6 +18,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import com.baidu.mapapi.map.BaiduMap
+import com.baidu.mapapi.map.MapView
+import com.baidu.mapapi.map.MyLocationData
+import com.baidu.mapapi.model.LatLng
+import com.baidu.mapapi.map.MapStatusUpdateFactory
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.locationsimulator.repository.FavoriteLocationRepository
@@ -76,6 +82,8 @@ class SimplifiedMainActivity : ComponentActivity() {
         var isSimulating by remember { mutableStateOf(false) }
         var coordinateInput by remember { mutableStateOf("113.781601,22.739863") }
         var statusMessage by remember { mutableStateOf("") }
+        var mapView by remember { mutableStateOf<MapView?>(null) }
+        var baiduMap by remember { mutableStateOf<BaiduMap?>(null) }
         
         Column(
             modifier = Modifier
@@ -114,6 +122,39 @@ class SimplifiedMainActivity : ComponentActivity() {
                 }
             }
             
+            // 地图显示
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .padding(bottom = 16.dp)
+            ) {
+                AndroidView(
+                    factory = { context ->
+                        MapView(context).apply {
+                            mapView = this
+                            baiduMap = map.apply {
+                                // 启用定位图层
+                                isMyLocationEnabled = true
+                                // 设置地图类型
+                                mapType = BaiduMap.MAP_TYPE_NORMAL
+                                // 设置缩放级别
+                                setMapStatus(MapStatusUpdateFactory.zoomTo(15f))
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            // 地图生命周期管理
+            DisposableEffect(mapView) {
+                onDispose {
+                    mapView?.onDestroy()
+                }
+            }
+            }
+
             // 坐标输入
             OutlinedTextField(
                 value = coordinateInput,
@@ -142,7 +183,13 @@ class SimplifiedMainActivity : ComponentActivity() {
                         } else {
                             val result = startMockLocation(coordinateInput)
                             isSimulating = result
-                            statusMessage = if (result) "模拟定位已启动" else "启动失败，请检查设置"
+                            statusMessage = if (result) {
+                                // 更新地图显示
+                                updateMapLocation(coordinateInput, baiduMap)
+                                "模拟定位已启动"
+                            } else {
+                                "启动失败，请检查设置"
+                            }
                         }
                     },
                     modifier = Modifier.weight(1f),
@@ -298,5 +345,48 @@ class SimplifiedMainActivity : ComponentActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "添加收藏失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /**
+     * 更新地图位置显示
+     */
+    private fun updateMapLocation(coordinateInput: String, baiduMap: BaiduMap?) {
+        try {
+            val parts = coordinateInput.split(",")
+            if (parts.size == 2) {
+                val longitude = parts[0].trim().toDouble()
+                val latitude = parts[1].trim().toDouble()
+
+                baiduMap?.let { map ->
+                    // 创建位置数据
+                    val locData = MyLocationData.Builder()
+                        .accuracy(0f)
+                        .direction(0f)
+                        .latitude(latitude)
+                        .longitude(longitude)
+                        .build()
+
+                    // 设置定位数据
+                    map.setMyLocationData(locData)
+
+                    // 移动地图到指定位置
+                    val latLng = LatLng(latitude, longitude)
+                    val mapStatus = MapStatusUpdateFactory.newLatLng(latLng)
+                    map.animateMapStatus(mapStatus)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SimplifiedMainActivity", "更新地图位置失败: ${e.message}")
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 地图生命周期管理会在Compose中处理
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // 地图生命周期管理会在Compose中处理
     }
 }
