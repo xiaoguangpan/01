@@ -22,10 +22,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -218,8 +218,8 @@ class SimplifiedMainActivity : ComponentActivity() {
                         contentColor = MaterialTheme.colorScheme.onSurface
                     ) {
                         Icon(
-                            Icons.Default.Explore,
-                            contentDescription = "指南针",
+                            Icons.Default.Refresh,
+                            contentDescription = "重置方向",
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -258,7 +258,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                         contentColor = MaterialTheme.colorScheme.onSurface
                     ) {
                         Icon(
-                            Icons.Default.Remove,
+                            Icons.Default.KeyboardArrowDown,
                             contentDescription = "缩小",
                             modifier = Modifier.size(18.dp)
                         )
@@ -390,7 +390,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                                 }
                             ) {
                                 Icon(
-                                    Icons.Default.GpsFixed,
+                                    Icons.Default.LocationOn,
                                     contentDescription = "获取当前位置",
                                     tint = Color(0xFF2196F3)
                                 )
