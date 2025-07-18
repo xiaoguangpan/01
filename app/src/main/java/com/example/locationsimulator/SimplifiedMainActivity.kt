@@ -74,6 +74,23 @@ class SimplifiedMainActivity : ComponentActivity() {
     private lateinit var favoriteRepository: FavoriteLocationRepository
     private val searchHistory = mutableListOf<String>()
     private var locationClient: LocationClient? = null
+
+    // Activity Result Launcher for favorites
+    private val favoriteListLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.let { data ->
+                val latitude = data.getDoubleExtra("latitude", 0.0)
+                val longitude = data.getDoubleExtra("longitude", 0.0)
+                val address = data.getStringExtra("address") ?: ""
+
+                if (latitude != 0.0 && longitude != 0.0) {
+                    startMockLocationFromFavorite(latitude, longitude, address)
+                }
+            }
+        }
+    }
     
     // 收藏列表界面启动器
     private val favoriteListLauncher = registerForActivityResult(
@@ -129,6 +146,7 @@ class SimplifiedMainActivity : ComponentActivity() {
         var mapView by remember { mutableStateOf<MapView?>(null) }
         var baiduMap by remember { mutableStateOf<BaiduMap?>(null) }
         var showHelp by remember { mutableStateOf(false) }
+        var showFavoritesList by remember { mutableStateOf(false) }
 
         Box(modifier = Modifier.fillMaxSize()) {
             // 全屏地图显示区域
@@ -499,25 +517,8 @@ class SimplifiedMainActivity : ComponentActivity() {
                             )
                         }
                     }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.FavoriteBorder, contentDescription = null, modifier = Modifier.size(16.dp))
-                            }
-
-                            // 收藏列表按钮
-                            OutlinedButton(
-                                onClick = {
-                                    val intent = Intent(this@SimplifiedMainActivity, FavoriteLocationsActivity::class.java)
-                                    favoriteListLauncher.launch(intent)
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
                 }
+            }
             
             // 地址建议下拉列表 - 悬浮在底部卡片上方
             if (showAddressSuggestions && addressSuggestions.isNotEmpty()) {
