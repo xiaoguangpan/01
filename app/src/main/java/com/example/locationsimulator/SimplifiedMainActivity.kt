@@ -3,6 +3,7 @@ package com.example.locationsimulator
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -153,7 +154,6 @@ class SimplifiedMainActivity : ComponentActivity() {
                     mapView?.onDestroy()
                 }
             }
-            }
 
             // 坐标输入
             OutlinedTextField(
@@ -217,7 +217,7 @@ class SimplifiedMainActivity : ComponentActivity() {
             // 收藏列表按钮
             OutlinedButton(
                 onClick = {
-                    val intent = Intent(context, FavoriteLocationsActivity::class.java)
+                    val intent = Intent(this@SimplifiedMainActivity, FavoriteLocationsActivity::class.java)
                     favoriteListLauncher.launch(intent)
                 },
                 modifier = Modifier
