@@ -18,9 +18,9 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.material3.HorizontalDivider
@@ -54,6 +54,7 @@ import kotlinx.coroutines.launch
 /**
  * 简化的主界面 - 移除Shizuku相关功能，专注核心功能
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 class SimplifiedMainActivity : ComponentActivity() {
     
     private lateinit var favoriteRepository: FavoriteLocationRepository
@@ -276,7 +277,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                                 )
                             ) {
                                 Icon(
-                                    if (isSimulating) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    if (isSimulating) Icons.Default.Stop else Icons.Default.PlayArrow,
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -307,7 +308,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Icon(Icons.Default.FormatListBulleted, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
