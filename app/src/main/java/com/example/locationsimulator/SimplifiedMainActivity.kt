@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material3.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.Alignment
@@ -48,6 +49,7 @@ import com.baidu.mapapi.model.LatLng
 import com.baidu.mapapi.map.MapStatusUpdateFactory
 import com.baidu.mapapi.map.MarkerOptions
 import com.baidu.mapapi.map.BitmapDescriptorFactory
+import com.baidu.mapapi.map.MapStatus
 import com.baidu.mapapi.search.geocode.GeoCoder
 import com.baidu.mapapi.search.geocode.GeoCodeOption
 import com.baidu.mapapi.search.geocode.OnGetGeoCoderResultListener
@@ -86,25 +88,6 @@ class SimplifiedMainActivity : ComponentActivity() {
                 val address = data.getStringExtra("address") ?: ""
 
                 if (latitude != 0.0 && longitude != 0.0) {
-                    startMockLocationFromFavorite(latitude, longitude, address)
-                }
-            }
-        }
-    }
-    
-    // 收藏列表界面启动器
-    private val favoriteListLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.let { data ->
-                val latitude = data.getDoubleExtra("latitude", 0.0)
-                val longitude = data.getDoubleExtra("longitude", 0.0)
-                val address = data.getStringExtra("address") ?: ""
-                val startSimulation = data.getBooleanExtra("start_simulation", false)
-                
-                if (startSimulation) {
-                    // 从收藏列表返回，启动模拟定位
                     startMockLocationFromFavorite(latitude, longitude, address)
                 }
             }
@@ -170,14 +153,11 @@ class SimplifiedMainActivity : ComponentActivity() {
                                     // 设置地图UI设置
                                     uiSettings.apply {
                                         isCompassEnabled = false // 使用自定义指南针
-                                        isZoomControlsEnabled = false // 使用自定义缩放控件
                                         isScrollGesturesEnabled = true
                                         isZoomGesturesEnabled = true
                                         isRotateGesturesEnabled = true
                                         isOverlookingGesturesEnabled = true
                                     }
-                                    // 设置地图夜间模式
-                                    setMapCustomEnable(true)
                                     Log.d("SimplifiedMainActivity", "地图初始化成功 - 深色主题")
                                 } catch (e: Exception) {
                                     Log.e("SimplifiedMainActivity", "地图初始化失败: ${e.message}", e)
@@ -222,8 +202,14 @@ class SimplifiedMainActivity : ComponentActivity() {
                         onClick = {
                             // 重置地图方向
                             baiduMap?.let { map ->
+                                val currentStatus = map.mapStatus
                                 val mapStatus = MapStatusUpdateFactory.newMapStatus(
-                                    map.mapStatus.apply { rotate = 0f }
+                                    MapStatus.Builder()
+                                        .target(currentStatus.target)
+                                        .zoom(currentStatus.zoom)
+                                        .rotate(0f)
+                                        .overlook(currentStatus.overlook)
+                                        .build()
                                 )
                                 map.animateMapStatus(mapStatus)
                             }
