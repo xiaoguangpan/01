@@ -567,8 +567,6 @@ class SimplifiedMainActivity : ComponentActivity() {
                     }
                 }
             }
-            
-            }
 
             // 帮助对话框
             if (showHelp) {
