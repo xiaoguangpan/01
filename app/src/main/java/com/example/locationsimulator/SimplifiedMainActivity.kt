@@ -75,6 +75,7 @@ class SimplifiedMainActivity : ComponentActivity() {
     private lateinit var favoriteRepository: FavoriteLocationRepository
     private val searchHistory = mutableListOf<String>()
     private var locationClient: LocationClient? = null
+    private var mapView: MapView? = null
 
     // Activity Result Launcher for favorites
     private val favoriteListLauncher = registerForActivityResult(
@@ -139,6 +140,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                     factory = { context ->
                         MapView(context).apply {
                             mapView = this
+                            this@SimplifiedMainActivity.mapView = this
                             baiduMap = map.apply {
                                 try {
                                     // 启用定位图层
@@ -697,9 +699,9 @@ class SimplifiedMainActivity : ComponentActivity() {
             val longitude = parts[0].trim().toDouble()
             val latitude = parts[1].trim().toDouble()
 
-            Log.d("SimplifiedMainActivity", "🗺️ 原始坐标 (BD09LL): $latitude, $longitude")
+            Log.d("SimplifiedMainActivity", "🗺️ 用户输入坐标 (BD09LL): $latitude, $longitude")
 
-            // 将百度坐标系(BD09LL)转换为GPS坐标系(WGS84)用于模拟定位
+            // 用户输入的是百度坐标系，需要转换为WGS84用于模拟定位
             val wgs84Coords = CoordinateConverter.bd09ToWgs84(longitude, latitude)
             val wgs84Lng = wgs84Coords.first
             val wgs84Lat = wgs84Coords.second
@@ -791,8 +793,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                         Log.d("SimplifiedMainActivity", "🗺️ 地址解析结果 (BD09LL): $address -> $bdLat, $bdLng")
 
                         // 百度地址解析返回的是BD09LL坐标系，直接返回
-                        // 注意：这里返回的是百度坐标系，用于地图显示
-                        // 实际模拟定位时会在performMockLocation中转换为WGS84
+                        // 这些坐标会被当作用户输入的百度坐标处理
                         callback(bdLat, bdLng)
                     } else {
                         Log.w("SimplifiedMainActivity", "地址解析失败: $address")
@@ -981,8 +982,9 @@ class SimplifiedMainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         try {
-            // 地图生命周期管理会在Compose中处理
-            Log.d("SimplifiedMainActivity", "Activity onResume")
+            // 恢复地图
+            mapView?.onResume()
+            Log.d("SimplifiedMainActivity", "Activity onResume - 地图已恢复")
         } catch (e: Exception) {
             Log.e("SimplifiedMainActivity", "onResume失败: ${e.message}", e)
         }
@@ -991,8 +993,9 @@ class SimplifiedMainActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         try {
-            // 地图生命周期管理会在Compose中处理
-            Log.d("SimplifiedMainActivity", "Activity onPause")
+            // 暂停地图
+            mapView?.onPause()
+            Log.d("SimplifiedMainActivity", "Activity onPause - 地图已暂停")
         } catch (e: Exception) {
             Log.e("SimplifiedMainActivity", "onPause失败: ${e.message}", e)
         }
@@ -1004,10 +1007,15 @@ class SimplifiedMainActivity : ComponentActivity() {
             locationClient?.stop()
             locationClient = null
 
-            super.onDestroy()
-            Log.d("SimplifiedMainActivity", "Activity onDestroy")
+            // 清理地图
+            mapView?.onDestroy()
+            mapView = null
+
+            Log.d("SimplifiedMainActivity", "Activity onDestroy - 资源已清理")
         } catch (e: Exception) {
             Log.e("SimplifiedMainActivity", "onDestroy失败: ${e.message}", e)
+        } finally {
+            super.onDestroy()
         }
     }
 }
