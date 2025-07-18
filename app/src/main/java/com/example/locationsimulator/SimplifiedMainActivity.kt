@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.locationsimulator.repository.FavoriteLocationRepository
 import com.example.locationsimulator.ui.theme.LocationSimulatorTheme
 import com.example.locationsimulator.util.SimplifiedMockLocationManager
+import com.example.locationsimulator.util.MockLocationResult
 import kotlinx.coroutines.launch
 
 /**

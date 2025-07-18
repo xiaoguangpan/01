@@ -50,7 +50,7 @@
             tools:ignore="MissingClass" />
 
         <activity
-            android:name=".MainActivity"
+            android:name=".SimplifiedMainActivity"
             android:exported="true"
             android:label="定红"
             android:theme="@style/Theme.LocationSimulator">
