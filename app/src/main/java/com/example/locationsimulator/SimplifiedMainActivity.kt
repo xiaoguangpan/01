@@ -18,7 +18,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
@@ -277,7 +277,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                                 )
                             ) {
                                 Icon(
-                                    if (isSimulating) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                    if (isSimulating) Icons.Default.Close else Icons.Default.PlayArrow,
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp)
                                 )
