@@ -22,11 +22,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material3.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -219,7 +218,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                         contentColor = MaterialTheme.colorScheme.onSurface
                     ) {
                         Icon(
-                            Icons.Default.Navigation,
+                            Icons.Default.Explore,
                             contentDescription = "指南针",
                             modifier = Modifier.size(20.dp)
                         )
@@ -391,7 +390,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                                 }
                             ) {
                                 Icon(
-                                    Icons.Default.MyLocation,
+                                    Icons.Default.GpsFixed,
                                     contentDescription = "获取当前位置",
                                     tint = Color(0xFF2196F3)
                                 )
@@ -457,7 +456,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Icon(
-                                if (isSimulating) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                if (isSimulating) Icons.Default.Close else Icons.Default.PlayArrow,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
