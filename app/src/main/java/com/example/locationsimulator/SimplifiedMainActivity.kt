@@ -12,10 +12,18 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -103,14 +111,14 @@ class SimplifiedMainActivity : ComponentActivity() {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // 顶部标题栏
-                TopAppBar(
+                CenterAlignedTopAppBar(
                     title = { Text("定位模拟器") },
                     actions = {
                         IconButton(onClick = { showHelp = true }) {
                             Icon(Icons.Default.Help, contentDescription = "帮助")
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         titleContentColor = MaterialTheme.colorScheme.onPrimary,
                         actionIconContentColor = MaterialTheme.colorScheme.onPrimary
@@ -134,10 +142,15 @@ class SimplifiedMainActivity : ComponentActivity() {
                                     mapType = BaiduMap.MAP_TYPE_NORMAL
                                     // 设置缩放级别
                                     setMapStatus(MapStatusUpdateFactory.zoomTo(15f))
-                                    // 启用缩放控件
-                                    uiSettings.isZoomControlsEnabled = true
-                                    // 启用指南针
-                                    uiSettings.isCompassEnabled = true
+                                    // 启用缩放控件和指南针
+                                    try {
+                                        uiSettings?.let { ui ->
+                                            ui.isZoomControlsEnabled = true
+                                            ui.isCompassEnabled = true
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.w("SimplifiedMainActivity", "设置地图UI控件失败: ${e.message}")
+                                    }
                                 }
                             }
                         },
@@ -372,7 +385,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                         )
                         Text(
                             text = "1. 在地址框输入目标地址，或在坐标框输入经纬度\n" +
-                                    "2. 点击"开始模拟"启动位置模拟\n" +
+                                    "2. 点击\"开始模拟\"启动位置模拟\n" +
                                     "3. 可收藏常用位置便于快速使用\n\n",
                             fontSize = 14.sp,
                             modifier = Modifier.padding(bottom = 16.dp)
@@ -592,11 +605,14 @@ class SimplifiedMainActivity : ComponentActivity() {
 
                     // 添加标记点
                     val latLng = LatLng(latitude, longitude)
-                    val marker = MarkerOptions()
-                        .position(latLng)
-                        .icon(BitmapDescriptorFactory.defaultMarker())
-                        .title("模拟位置")
-                    map.addOverlay(marker)
+                    try {
+                        val marker = MarkerOptions()
+                            .position(latLng)
+                            .title("模拟位置")
+                        map.addOverlay(marker)
+                    } catch (e: Exception) {
+                        Log.w("SimplifiedMainActivity", "添加地图标记失败: ${e.message}")
+                    }
 
                     // 移动地图到指定位置
                     val mapStatus = MapStatusUpdateFactory.newLatLngZoom(latLng, 16f)
