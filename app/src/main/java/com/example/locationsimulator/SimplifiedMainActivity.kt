@@ -14,13 +14,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.material3.HorizontalDivider
@@ -111,14 +111,14 @@ class SimplifiedMainActivity : ComponentActivity() {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // 顶部标题栏
-                CenterAlignedTopAppBar(
+                TopAppBar(
                     title = { Text("定位模拟器") },
                     actions = {
                         IconButton(onClick = { showHelp = true }) {
-                            Icon(Icons.Default.Help, contentDescription = "帮助")
+                            Icon(Icons.Default.Info, contentDescription = "帮助")
                         }
                     },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         titleContentColor = MaterialTheme.colorScheme.onPrimary,
                         actionIconContentColor = MaterialTheme.colorScheme.onPrimary
@@ -144,10 +144,8 @@ class SimplifiedMainActivity : ComponentActivity() {
                                     setMapStatus(MapStatusUpdateFactory.zoomTo(15f))
                                     // 启用缩放控件和指南针
                                     try {
-                                        uiSettings?.let { ui ->
-                                            ui.isZoomControlsEnabled = true
-                                            ui.isCompassEnabled = true
-                                        }
+                                        // 百度地图的UI设置
+                                        showZoomControls(true)
                                     } catch (e: Exception) {
                                         Log.w("SimplifiedMainActivity", "设置地图UI控件失败: ${e.message}")
                                     }
@@ -228,7 +226,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                             onValueChange = { coordinateInput = it },
                             label = { Text("或输入坐标 (经度,纬度)") },
                             placeholder = { Text("113.781601,22.739863") },
-                            leadingIcon = { Icon(Icons.Default.MyLocation, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.Default.Place, contentDescription = null) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 16.dp)
@@ -278,7 +276,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                                 )
                             ) {
                                 Icon(
-                                    if (isSimulating) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                    if (isSimulating) Icons.Default.Pause else Icons.Default.PlayArrow,
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -298,7 +296,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.FavoriteBorder, contentDescription = null, modifier = Modifier.size(16.dp))
                             }
 
                             // 收藏列表按钮
@@ -309,7 +307,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.FormatListBulleted, contentDescription = null, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
