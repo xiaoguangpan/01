@@ -2,6 +2,15 @@
 <resources>
     <!-- Base application theme -->
     <style name="Theme.LocationSimulator" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- 全屏显示，隐藏状态栏 -->
+        <item name="android:windowFullscreen">true</item>
+        <!-- 沉浸式状态栏 -->
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+        <!-- 状态栏透明 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <!-- 导航栏颜色 -->
+        <item name="android:navigationBarColor">@android:color/black</item>
     </style>
 
     <!-- Theme with ActionBar for activities that need it -->
