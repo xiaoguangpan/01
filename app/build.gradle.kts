@@ -44,7 +44,6 @@ android {
         }
     }
 
-    // 移除AIDL支持（不再需要Shizuku）
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8

@@ -76,8 +76,6 @@ import com.example.locationsimulator.util.MockLocationResult
 import com.example.locationsimulator.util.MockLocationStrategy
 import com.example.locationsimulator.util.SetupInstruction
 import com.example.locationsimulator.util.AntiDetectionMockLocationManager
-import com.example.locationsimulator.util.ShizukuStatus
-import com.example.locationsimulator.util.ShizukuStatusMonitor
 import com.example.locationsimulator.util.MockLocationStatus
 import com.example.locationsimulator.repository.FavoriteLocationRepository
 import com.example.locationsimulator.util.SimplifiedMockLocationManager
@@ -85,7 +83,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import rikka.shizuku.Shizuku
 
 // region ViewModel
 enum class InputMode { ADDRESS, COORDINATE }
@@ -175,11 +172,6 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     private var addressTabClickCount = 0
     private var lastAddressTabClickTime = 0L
 
-    // Shizuku增强模式
-    var isShizukuEnhancedModeEnabled by mutableStateOf(false)
-        private set
-    private var shizukuClickCount = 0
-    private var lastShizukuClickTime = 0L
 
     fun addDebugMessage(message: String) {
         val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
@@ -239,107 +231,6 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         }
     }
 
-    /**
-     * 处理Shizuku权限授权成功
-     */
-    fun handleShizukuPermissionGranted() {
-        if (!isShizukuEnhancedModeEnabled) {
-            // 权限授权成功后，检查Shizuku状态并自动开启增强模式
-            val shizukuStatus = ShizukuStatusMonitor.getCurrentShizukuStatus()
-            if (shizukuStatus == ShizukuStatus.READY) {
-                isShizukuEnhancedModeEnabled = true
-                addDebugMessage("🔧 ✅ Shizuku权限授权成功，增强模式已自动开启")
-            }
-        }
-    }
-
-    // 5次点击切换Shizuku增强模式
-    fun handleShizukuEnhancedModeToggle(context: Context? = null) {
-        val currentTime = System.currentTimeMillis()
-
-        // 如果距离上次点击超过3秒，重置计数
-        if (currentTime - lastShizukuClickTime > 3000) {
-            shizukuClickCount = 0
-            addDebugMessage("🔄 Shizuku增强模式点击计数已重置")
-        }
-
-        shizukuClickCount++
-        lastShizukuClickTime = currentTime
-
-        addDebugMessage("🔢 Shizuku增强模式点击: ${shizukuClickCount}/5 (当前状态: ${if (isShizukuEnhancedModeEnabled) "已开启" else "已关闭"})")
-
-        if (shizukuClickCount >= 5) {
-            val previousState = isShizukuEnhancedModeEnabled
-
-            // 如果要开启增强模式，先检查Shizuku状态
-            if (!previousState) {
-                // 要开启增强模式，先检查状态
-                addDebugMessage("🔍 用户尝试开启Shizuku增强模式，开始状态检测...")
-                val contextToUse = context ?: application
-
-                // 检查Shizuku状态（等待Binder连接）
-                addDebugMessage("🔍 检查Shizuku状态...")
-                try {
-                    // 检查Binder连接状态
-                    val binder = rikka.shizuku.Shizuku.getBinder()
-                    if (binder != null && binder.isBinderAlive) {
-                        addDebugMessage("🔍 ✅ Shizuku Binder已连接且活跃")
-                        try {
-                            val version = rikka.shizuku.Shizuku.getVersion()
-                            addDebugMessage("🔍 ✅ Shizuku版本: $version")
-                            addDebugMessage("🔍 ✅ Shizuku已安装且正在运行")
-                        } catch (e: Exception) {
-                            addDebugMessage("🔍 ⚠️ Shizuku API调用失败: ${e.message}")
-                        }
-                    } else {
-                        addDebugMessage("🔍 ⚠️ Shizuku Binder未连接或不活跃")
-                        addDebugMessage("🔍 这可能说明Shizuku未运行或正在初始化中")
-                    }
-                } catch (e: Exception) {
-                    addDebugMessage("🔍 ❌ Shizuku状态检查失败: ${e.javaClass.simpleName} - ${e.message}")
-                }
-
-                // 使用强制刷新，忽略缓存
-                addDebugMessage("🔄 强制刷新Shizuku状态（忽略缓存）...")
-                val shizukuStatus = ShizukuStatusMonitor.forceRefreshStatus()
-                addDebugMessage("🔍 Shizuku状态检测完成: ${shizukuStatus.name} - ${shizukuStatus.message}")
-
-                // 根据Shizuku状态决定增强模式状态
-                when (shizukuStatus) {
-                    ShizukuStatus.READY -> {
-                        isShizukuEnhancedModeEnabled = true
-                        addDebugMessage("🚀 ✅ Shizuku增强模式已开启 - Shizuku完全就绪")
-                    }
-                    ShizukuStatus.NOT_INSTALLED -> {
-                        isShizukuEnhancedModeEnabled = false
-                        addDebugMessage("🚀 ❌ 无法开启增强模式 - Shizuku未安装")
-                    }
-                    ShizukuStatus.NOT_RUNNING -> {
-                        isShizukuEnhancedModeEnabled = false
-                        addDebugMessage("🚀 ❌ 无法开启增强模式 - Shizuku未运行")
-                    }
-                    ShizukuStatus.NO_PERMISSION -> {
-                        isShizukuEnhancedModeEnabled = false
-                        addDebugMessage("🚀 ❌ 无法开启增强模式 - Shizuku未授权")
-                    }
-                    ShizukuStatus.ERROR -> {
-                        isShizukuEnhancedModeEnabled = false
-                        addDebugMessage("🚀 ❌ 无法开启增强模式 - Shizuku状态检测异常")
-                    }
-                }
-
-                shizukuClickCount = 0
-
-                // 立即显示状态提示
-                checkAndShowShizukuStatus(contextToUse)
-            } else {
-                // 关闭增强模式
-                isShizukuEnhancedModeEnabled = false
-                shizukuClickCount = 0
-                addDebugMessage("🚀 Shizuku增强模式已关闭，仅使用标准模拟定位")
-            }
-        }
-    }
 
     // 检查和重新初始化SDK
     fun checkAndReinitSDK() {
@@ -1205,17 +1096,6 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         addDebugMessage("开始模拟定位...")
         statusMessage = "正在处理..."
 
-        // 显示已安装的目标应用
-        val installedApps = AppSpecificHandler.getInstalledTargetApps(context)
-        if (installedApps.isNotEmpty()) {
-            addDebugMessage("📱 检测到已安装的目标应用:")
-            installedApps.forEach { app ->
-                addDebugMessage("  • ${app.displayName} (${app.recommendedStrategy})")
-                app.specialHandling?.let { handling ->
-                    addDebugMessage("    特殊处理: $handling")
-                }
-            }
-        }
 
         if (inputMode == InputMode.ADDRESS) {
             // 地址模式：优先使用已选择建议的坐标，避免重复地理编码
@@ -1240,8 +1120,8 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
                 // 使用统一模拟定位管理器
                 addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start()")
-                addDebugMessage("🔥 参数: context=$context, lat=$wgsLat, lng=$wgsLng, enableShizuku=$isShizukuEnhancedModeEnabled")
-                val result = UnifiedMockLocationManager.start(context, wgsLat, wgsLng, isShizukuEnhancedModeEnabled)
+                addDebugMessage("🔥 参数: context=$context, lat=$wgsLat, lng=$wgsLng")
+                val result = UnifiedMockLocationManager.start(context, wgsLat, wgsLng, false)
                 addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $result")
 
                 when (result) {
@@ -1268,11 +1148,6 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                     is MockLocationResult.Failure -> {
                         statusMessage = "模拟失败: ${result.status.message}"
                         addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
-
-                        // 只有在Shizuku相关问题时才显示Shizuku状态对话框
-                        if (isShizukuEnhancedModeEnabled && isShizukuRelatedFailure(result.status)) {
-                            checkAndShowShizukuStatus(context)
-                        }
 
                         addDebugMessage("📋 设置说明:")
                         result.instructions.forEach { instruction ->
@@ -1331,25 +1206,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                         addDebugMessage("🎯 坐标传递链路: 地理编码API → 坐标转换 → 模拟定位")
 
                         // 启动模拟定位
-                        val mockResult = if (isShizukuEnhancedModeEnabled) {
-                            addDebugMessage("🔥🔥🔥 使用直接增强模式实现 [地理编码]")
-                            addDebugMessage("🔥 参数: lat=$latWgs, lng=$lngWgs")
-                            val directResult = directShizukuMockLocation(context, latWgs, lngWgs)
-                            addDebugMessage("🔥🔥🔥 直接增强模式结果: $directResult")
-
-                            if (directResult) {
-                                MockLocationResult.Success(MockLocationStrategy.SHIZUKU)
-                            } else {
-                                MockLocationResult.Failure(MockLocationStatus.NO_PERMISSION, emptyList())
-                            }
-                        } else {
-                            // 使用统一模拟定位管理器
-                            addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start() [地理编码]")
-                            addDebugMessage("🔥 参数: context=$context, lat=$latWgs, lng=$lngWgs, enableShizuku=$isShizukuEnhancedModeEnabled")
-                            val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs, isShizukuEnhancedModeEnabled)
-                            addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $result")
-                            result
-                        }
+                        val mockResult = UnifiedMockLocationManager.start(context, latWgs, lngWgs, false)
 
                         when (mockResult) {
                             is MockLocationResult.Success -> {
@@ -1380,11 +1237,6 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
 
                             is MockLocationResult.Failure -> {
                                 addDebugMessage("❌ 模拟定位启动失败: ${mockResult.status.message}")
-
-                                // 只有在Shizuku相关问题时才显示Shizuku状态对话框
-                                if (isShizukuEnhancedModeEnabled && isShizukuRelatedFailure(mockResult.status)) {
-                                    checkAndShowShizukuStatus(context)
-                                }
 
                                 addDebugMessage("📋 设置说明:")
                                 mockResult.instructions.forEach { instruction ->
@@ -1466,24 +1318,7 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                 Log.d("LocationViewModel", "Starting comprehensive mock location: lng=$lngWgs, lat=$latWgs")
 
                 // 启动模拟定位
-                val result = if (isShizukuEnhancedModeEnabled) {
-                    addDebugMessage("🔥🔥🔥 使用直接增强模式实现 [坐标模式]")
-                    addDebugMessage("🔥 参数: lat=$latWgs, lng=$lngWgs")
-                    val directResult = directShizukuMockLocation(context, latWgs, lngWgs)
-                    addDebugMessage("🔥🔥🔥 直接增强模式结果: $directResult")
-                    if (directResult) {
-                        MockLocationResult.Success(MockLocationStrategy.SHIZUKU)
-                    } else {
-                        MockLocationResult.Failure(MockLocationStatus.NO_PERMISSION, emptyList())
-                    }
-                } else {
-                    // 使用统一模拟定位管理器
-                    addDebugMessage("🔥🔥🔥 即将调用UnifiedMockLocationManager.start() [坐标模式]")
-                    addDebugMessage("🔥 参数: context=$context, lat=$latWgs, lng=$lngWgs, enableShizuku=$isShizukuEnhancedModeEnabled")
-                    val unifiedResult = UnifiedMockLocationManager.start(context, latWgs, lngWgs, isShizukuEnhancedModeEnabled)
-                    addDebugMessage("🔥🔥🔥 UnifiedMockLocationManager.start()返回结果: $unifiedResult")
-                    unifiedResult
-                }
+                val result = UnifiedMockLocationManager.start(context, latWgs, lngWgs, false)
 
                 when (result) {
                     is MockLocationResult.Success -> {
@@ -1547,11 +1382,6 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
                     is MockLocationResult.Failure -> {
                         addDebugMessage("❌ 模拟定位启动失败: ${result.status.message}")
 
-                        // 只有在Shizuku相关问题时才显示Shizuku状态对话框
-                        if (isShizukuEnhancedModeEnabled && isShizukuRelatedFailure(result.status)) {
-                            checkAndShowShizukuStatus(context)
-                        }
-
                         addDebugMessage("📋 设置说明:")
                         result.instructions.forEach { instruction ->
                             addDebugMessage("  • ${instruction.title}: ${instruction.description}")
@@ -1573,15 +1403,6 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
     fun stopSimulation(context: Context) {
         addDebugMessage("🛑 停止系统级模拟定位...")
         try {
-            // 显示监控统计信息
-            val persistenceManager = LocationPersistenceManager.getInstance()
-            val wifiHandler = WiFiInterferenceHandler.getInstance()
-            if (persistenceManager.isMonitoring()) {
-                addDebugMessage("📊 位置重置次数: ${persistenceManager.getResetCount()}")
-                addDebugMessage("📶 WiFi状态: ${wifiHandler.getWifiStatusInfo()}")
-                addDebugMessage("🎯 目标应用: ${persistenceManager.getCurrentTargetApp() ?: "通用"}")
-            }
-
             UnifiedMockLocationManager.stop(context)
             isSimulating = false
             statusMessage = null
@@ -1621,178 +1442,6 @@ class MainViewModel(val application: android.app.Application) : ViewModel() {
         addDebugMessage("💡 提示：应用不会自动跳转到系统设置，请根据上述说明手动检查配置")
     }
 
-    /**
-     * 判断失败是否与Shizuku相关
-     */
-    private fun isShizukuRelatedFailure(status: MockLocationStatus): Boolean {
-        return when (status) {
-            MockLocationStatus.MOCK_APP_NOT_SELECTED,
-            MockLocationStatus.DEVELOPER_OPTIONS_DISABLED,
-            MockLocationStatus.NO_PERMISSION,
-            MockLocationStatus.LOCATION_SERVICE_UNAVAILABLE -> false
-            MockLocationStatus.READY -> true // 如果状态是READY但仍然失败，可能是Shizuku问题
-        }
-    }
-
-    /**
-     * 检查并显示Shizuku状态详细信息，并弹出用户友好的状态提示
-     */
-    private fun checkAndShowShizukuStatus(context: Context) {
-        addDebugMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        addDebugMessage("🔧 增强模式状态检查:")
-        addDebugMessage("📱 增强模式状态: ${if (isShizukuEnhancedModeEnabled) "已开启" else "已关闭"}")
-
-        // 强制刷新Shizuku状态（忽略缓存）
-        addDebugMessage("🔄 强制刷新Shizuku状态...")
-        val shizukuStatus = ShizukuStatusMonitor.forceRefreshStatus()
-        addDebugMessage("📦 Shizuku状态: ${shizukuStatus.name} - ${shizukuStatus.message}")
-
-        // 弹出明确的状态提示
-        showShizukuStatusDialog(context, shizukuStatus)
-
-        when (shizukuStatus) {
-            ShizukuStatus.NOT_INSTALLED -> {
-                addDebugMessage("💡 建议: 安装Shizuku应用以使用增强功能")
-                addDebugMessage("💡 或者: 关闭增强模式使用标准模拟定位功能")
-            }
-            ShizukuStatus.NOT_RUNNING -> {
-                addDebugMessage("💡 建议: 启动Shizuku应用并开启服务")
-                addDebugMessage("💡 步骤: 打开Shizuku → 点击启动按钮 → 重新尝试模拟定位")
-            }
-            ShizukuStatus.NO_PERMISSION -> {
-                addDebugMessage("💡 建议: 在Shizuku中授权本应用")
-                addDebugMessage("💡 步骤: 打开Shizuku → 应用管理 → 找到本应用 → 授权")
-            }
-            ShizukuStatus.ERROR -> {
-                addDebugMessage("💡 建议: 检查Shizuku安装和权限状态")
-            }
-            ShizukuStatus.READY -> {
-                addDebugMessage("💡 Shizuku状态正常，增强模式已就绪")
-                addDebugMessage("💡 可以使用Shizuku增强模式进行模拟定位")
-            }
-        }
-        addDebugMessage("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    }
-
-    /**
-     * 显示Shizuku状态对话框
-     */
-    private fun showShizukuStatusDialog(context: Context, status: ShizukuStatus) {
-        addDebugMessage("🔔 准备显示Shizuku状态对话框...")
-        addDebugMessage("🔔 Context类型: ${context.javaClass.simpleName}")
-        addDebugMessage("🔔 Shizuku状态: ${status.name}")
-
-        val (title, message, actionText) = when (status) {
-            ShizukuStatus.NOT_INSTALLED -> Triple(
-                "Shizuku未安装",
-                "未检测到Shizuku应用。要使用增强模式功能，请先安装Shizuku应用。\n\n增强模式已自动关闭，您仍可使用标准模拟定位功能。",
-                "去下载"
-            )
-            ShizukuStatus.NOT_RUNNING -> Triple(
-                "Shizuku未启动",
-                "Shizuku已安装但未启动。要使用增强模式功能，请先开启Shizuku服务。\n\n增强模式已自动关闭，您仍可使用标准模拟定位功能。",
-                "去启动"
-            )
-            ShizukuStatus.NO_PERMISSION -> Triple(
-                "需要授权",
-                "Shizuku已安装且运行，但需要授权本应用才能使用增强功能。\n\n增强模式已自动关闭，您仍可使用标准模拟定位功能。",
-                "去授权"
-            )
-            ShizukuStatus.READY -> Triple(
-                "增强模式就绪",
-                "🎉 Shizuku增强模式已成功开启！\n\n现在可以使用系统级模拟定位功能，具有更强的兼容性和反检测能力。",
-                "确定"
-            )
-            ShizukuStatus.ERROR -> Triple(
-                "检测异常",
-                "Shizuku状态检测出现异常，请检查Shizuku安装和权限状态。\n\n增强模式已自动关闭，您仍可使用标准模拟定位功能。",
-                "确定"
-            )
-        }
-
-        // 使用Handler在主线程中显示对话框
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            try {
-                // 尝试获取正确的Activity Context
-                val activityContext = when {
-                    context is android.app.Activity -> {
-                        addDebugMessage("🔔 使用传入的Activity Context")
-                        context
-                    }
-                    context is android.content.ContextWrapper -> {
-                        addDebugMessage("🔔 尝试从ContextWrapper获取Activity")
-                        var baseContext = context.baseContext
-                        while (baseContext is android.content.ContextWrapper && baseContext !is android.app.Activity) {
-                            baseContext = baseContext.baseContext
-                        }
-                        baseContext as? android.app.Activity
-                    }
-                    else -> {
-                        addDebugMessage("🔔 Context类型不匹配，尝试获取Application Context")
-                        null
-                    }
-                }
-
-                if (activityContext != null && !activityContext.isFinishing && !activityContext.isDestroyed) {
-                    addDebugMessage("🔔 ✅ 成功获取有效Activity Context，显示对话框: $title")
-
-                    android.app.AlertDialog.Builder(activityContext)
-                        .setTitle(title)
-                        .setMessage(message)
-                        .setPositiveButton(actionText) { _, _ ->
-                            when (status) {
-                                ShizukuStatus.NOT_INSTALLED -> {
-                                    // 尝试打开应用商店或提供下载链接
-                                    try {
-                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
-                                        intent.data = android.net.Uri.parse("https://github.com/RikkaApps/Shizuku/releases")
-                                        activityContext.startActivity(intent)
-                                        addDebugMessage("📱 已打开Shizuku下载页面")
-                                    } catch (e: Exception) {
-                                        addDebugMessage("❌ 无法打开下载页面: ${e.message}")
-                                    }
-                                }
-                                ShizukuStatus.NOT_RUNNING, ShizukuStatus.NO_PERMISSION -> {
-                                    // 尝试打开Shizuku应用
-                                    try {
-                                        val intent = activityContext.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
-                                        if (intent != null) {
-                                            activityContext.startActivity(intent)
-                                            addDebugMessage("📱 已打开Shizuku应用")
-                                        } else {
-                                            addDebugMessage("❌ 无法找到Shizuku应用")
-                                        }
-                                    } catch (e: Exception) {
-                                        addDebugMessage("❌ 打开Shizuku应用失败: ${e.message}")
-                                    }
-                                }
-                                else -> {
-                                    addDebugMessage("✅ 用户确认Shizuku状态")
-                                }
-                            }
-                        }
-                        .setNegativeButton("取消") { dialog, _ ->
-                            addDebugMessage("❌ 用户取消Shizuku操作")
-                            dialog.dismiss()
-                        }
-                        .setCancelable(true)
-                        .show()
-                } else {
-                    val reason = when {
-                        activityContext == null -> "无法获取有效的Activity Context"
-                        activityContext.isFinishing -> "Activity正在结束"
-                        activityContext.isDestroyed -> "Activity已被销毁"
-                        else -> "未知原因"
-                    }
-                    addDebugMessage("❌ 无法显示对话框: $reason")
-                    addDebugMessage("💡 状态信息已记录在调试日志中，请查看上方的状态检测结果")
-                }
-            } catch (e: Exception) {
-                addDebugMessage("❌ 显示对话框异常: ${e.message}")
-                addDebugMessage("💡 状态信息已记录在调试日志中，请查看上方的状态检测结果")
-            }
-        }
-    }
 
     /**
      * 检查WiFi状态 - 分析WiFi对模拟定位的影响
