@@ -33,11 +33,11 @@ class MainApplication : Application() {
 
             // 第三步：初始化百度地图SDK
             Log.d(TAG, "3️⃣ 初始化百度地图SDK...")
-            val initResult = SDKInitializer.initialize(this)
-            if (initResult == SDKInitializer.SDK_BROADTCAST_ACTION_STRING_PERMISSION_CHECK_OK) {
-                Log.d(TAG, "✅ 百度地图SDK初始化成功")
-            } else {
-                Log.e(TAG, "❌ 百度地图SDK初始化失败，返回值: $initResult")
+            try {
+                SDKInitializer.initialize(this)
+                Log.d(TAG, "✅ 百度地图SDK初始化调用成功")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ 百度地图SDK初始化失败: ${e.message}")
             }
 
             // 第四步：设置坐标类型为BD09LL（百度坐标）

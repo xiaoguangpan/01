@@ -28,7 +28,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.scale
@@ -300,7 +300,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                         contentColor = if (showDebugLog) Color.White else Color(0xFF6B7280)
                     ) {
                         Icon(
-                            Icons.Default.BugReport,
+                            Icons.Default.Settings,
                             contentDescription = "调试",
                             modifier = Modifier.size(20.dp)
                         )
@@ -959,7 +959,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                 // 先启动一个临时的模拟定位，确保系统准备就绪
                 SimplifiedMockLocationManager.start(this, wgs84Lat, wgs84Lng, true)
                 Thread.sleep(500) // 等待500ms确保系统状态稳定
-                SimplifiedMockLocationManager.stop()
+                SimplifiedMockLocationManager.stop(this@SimplifiedMainActivity)
                 addDebugLog("✅ 百度地图预启动完成")
             }
 
@@ -1288,7 +1288,7 @@ class SimplifiedMainActivity : ComponentActivity() {
             mapView = null
 
             // 停止模拟定位
-            SimplifiedMockLocationManager.stop()
+            SimplifiedMockLocationManager.stop(this@SimplifiedMainActivity)
             addDebugLog("✅ 模拟定位已停止")
 
             addDebugLog("✅ Activity onDestroy完成 - 所有资源已清理")
