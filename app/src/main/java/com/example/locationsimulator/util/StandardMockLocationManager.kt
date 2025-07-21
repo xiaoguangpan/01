@@ -150,6 +150,9 @@ object StandardMockLocationManager {
                         val varLat = currentLatitude + (Math.random() - 0.5) * variation
                         val varLng = currentLongitude + (Math.random() - 0.5) * variation
                         updateMockLocation(locationManager, varLat, varLng)
+
+                        // 百度地图专用：额外的位置提供者更新
+                        updateMockLocationForBaidu(locationManager, varLat, varLng)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "❌ 更新模拟位置失败: ${e.message}", e)
@@ -327,7 +330,48 @@ object StandardMockLocationManager {
 
         return result
     }
-    
+
+    /**
+     * 百度地图专用位置更新
+     */
+    private fun updateMockLocationForBaidu(locationManager: LocationManager, latitude: Double, longitude: Double) {
+        try {
+            // 为百度地图创建更精确的位置信息
+            val location = Location(LocationManager.GPS_PROVIDER).apply {
+                this.latitude = latitude
+                this.longitude = longitude
+                this.accuracy = 1.0f // 高精度
+                this.time = System.currentTimeMillis()
+                this.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+
+                // 百度地图专用：添加额外的位置属性
+                this.altitude = 0.0
+                this.bearing = 0.0f
+                this.speed = 0.0f
+
+                // 设置位置来源为GPS以提高可信度
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                    this.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+                }
+            }
+
+            // 同时更新GPS和NETWORK提供者
+            listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).forEach { provider ->
+                try {
+                    if (locationManager.isProviderEnabled(provider)) {
+                        location.provider = provider
+                        locationManager.setTestProviderLocation(provider, location)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "百度专用位置更新失败 ($provider): ${e.message}")
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "百度地图专用位置更新失败: ${e.message}")
+        }
+    }
+
     private fun updateMockLocation(locationManager: LocationManager, lat: Double, lng: Double) {
         ALL_PROVIDERS.forEach { provider ->
             try {

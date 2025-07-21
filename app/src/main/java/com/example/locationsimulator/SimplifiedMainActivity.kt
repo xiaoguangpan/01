@@ -146,6 +146,30 @@ class SimplifiedMainActivity : ComponentActivity() {
         Log.d("SimplifiedMainActivity", message)
     }
 
+    // 检查是否安装了百度地图
+    private fun isBaiduMapInstalled(): Boolean {
+        return try {
+            val baiduMapPackages = listOf(
+                "com.baidu.BaiduMap",           // 百度地图
+                "com.baidu.maps",               // 百度地图备用包名
+                "com.baidu.netdisk"             // 百度网盘（也使用百度地图SDK）
+            )
+
+            baiduMapPackages.any { packageName ->
+                try {
+                    packageManager.getPackageInfo(packageName, 0)
+                    addDebugLog("✅ 检测到百度应用: $packageName")
+                    true
+                } catch (e: Exception) {
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            addDebugLog("❌ 百度地图检测失败: ${e.message}")
+            false
+        }
+    }
+
     @Composable
     fun MainScreen() {
         val context = LocalContext.current
@@ -909,6 +933,7 @@ class SimplifiedMainActivity : ComponentActivity() {
             }
 
             // 用户输入的是百度坐标系，需要转换为WGS84用于模拟定位
+            addDebugLog("🔄 开始坐标系转换 (BD09LL → WGS84)")
             val wgs84Coords = CoordinateConverter.bd09ToWgs84(longitude, latitude)
             val wgs84Lng = wgs84Coords.first
             val wgs84Lat = wgs84Coords.second
@@ -919,8 +944,25 @@ class SimplifiedMainActivity : ComponentActivity() {
             addDebugLog("📍 转换后坐标 (WGS84): $wgs84Lat, $wgs84Lng")
             addDebugLog("📏 坐标偏移: 经度${String.format("%.6f", offsetLng)}, 纬度${String.format("%.6f", offsetLat)}")
 
+            // 百度地图专用：检查是否需要预启动模拟定位
+            addDebugLog("🗺️ 百度地图兼容性检查...")
+            if (isBaiduMapInstalled()) {
+                addDebugLog("📱 检测到百度地图，启用专用兼容模式")
+            }
+
             // 使用WGS84坐标进行模拟定位
             addDebugLog("🔧 使用${if (enhancedMode) "增强" else "标准"}模式启动")
+
+            // 百度地图专用：提前启动模拟定位以确保兼容性
+            if (isBaiduMapInstalled()) {
+                addDebugLog("🗺️ 百度地图兼容模式：提前启动模拟定位")
+                // 先启动一个临时的模拟定位，确保系统准备就绪
+                SimplifiedMockLocationManager.start(this, wgs84Lat, wgs84Lng, true)
+                Thread.sleep(500) // 等待500ms确保系统状态稳定
+                SimplifiedMockLocationManager.stop()
+                addDebugLog("✅ 百度地图预启动完成")
+            }
+
             val result = SimplifiedMockLocationManager.start(this, wgs84Lat, wgs84Lng, enhancedMode)
             when (result) {
                 is MockLocationResult.Success -> {
