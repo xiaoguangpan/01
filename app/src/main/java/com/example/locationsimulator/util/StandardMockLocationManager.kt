@@ -49,6 +49,9 @@ object StandardMockLocationManager {
     @Volatile
     private var lastError: String? = null
 
+    @Volatile
+    private var enhancedMode = false
+
     /**
      * 获取最后一次错误信息
      */
@@ -91,7 +94,7 @@ object StandardMockLocationManager {
     /**
      * 开始模拟定位
      */
-    fun start(context: Context, latitude: Double, longitude: Double): Boolean {
+    fun start(context: Context, latitude: Double, longitude: Double, enhanced: Boolean = false): Boolean {
         Log.d(TAG, "🚀 开始标准模拟定位: $latitude, $longitude")
 
         val status = checkMockLocationPermissions(context)
@@ -113,6 +116,7 @@ object StandardMockLocationManager {
             currentLatitude = latitude
             currentLongitude = longitude
             isRunning = true
+            enhancedMode = enhanced
 
             val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
@@ -131,16 +135,27 @@ object StandardMockLocationManager {
                 }
             }
 
+            // Enhanced mode: more aggressive updates for DingTalk compatibility
+            val updateInterval = if (enhancedMode) 50L else 100L // 50ms for enhanced mode
+
             executor?.scheduleAtFixedRate({
                 if (!isRunning) return@scheduleAtFixedRate
 
                 try {
                     updateMockLocation(locationManager, currentLatitude, currentLongitude)
+
+                    // Enhanced mode: add slight coordinate variations to avoid detection
+                    if (enhancedMode) {
+                        val variation = 0.000001 // Very small variation
+                        val varLat = currentLatitude + (Math.random() - 0.5) * variation
+                        val varLng = currentLongitude + (Math.random() - 0.5) * variation
+                        updateMockLocation(locationManager, varLat, varLng)
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "❌ 更新模拟位置失败: ${e.message}", e)
                     lastError = "位置更新失败: ${e.message}"
                 }
-            }, 0, Constants.Timing.LOCATION_UPDATE_INTERVAL, TimeUnit.MILLISECONDS)
+            }, 0, updateInterval, TimeUnit.MILLISECONDS)
         }
 
         Log.d(TAG, "✅ 标准模拟定位已启动")

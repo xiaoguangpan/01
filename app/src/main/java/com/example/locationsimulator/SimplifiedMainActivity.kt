@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.scale
 import androidx.compose.runtime.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.rememberScrollState
@@ -160,6 +161,7 @@ class SimplifiedMainActivity : ComponentActivity() {
         var showHelp by remember { mutableStateOf(false) }
         var showFavoritesList by remember { mutableStateOf(false) }
         var showDebugLog by remember { mutableStateOf(false) }
+        var enhancedMode by remember { mutableStateOf(false) }
 
         Box(modifier = Modifier.fillMaxSize()) {
             // 全屏地图显示区域
@@ -483,7 +485,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                                     if (isCoordinateInput(inputText)) {
                                         // 坐标输入
                                         coordinateInput = inputText
-                                        performMockLocation(inputText, baiduMap) { success, message ->
+                                        performMockLocation(inputText, baiduMap, enhancedMode) { success, message ->
                                             isSimulating = success
                                             statusMessage = message
                                         }
@@ -492,7 +494,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                                         geocodeAddress(inputText) { lat, lng ->
                                             if (lat != 0.0 && lng != 0.0) {
                                                 coordinateInput = "$lng,$lat"
-                                                performMockLocation(coordinateInput, baiduMap) { success, message ->
+                                                performMockLocation(coordinateInput, baiduMap, enhancedMode) { success, message ->
                                                     isSimulating = success
                                                     statusMessage = message
                                                 }
@@ -559,9 +561,33 @@ class SimplifiedMainActivity : ComponentActivity() {
                             )
                         }
                     }
+
+                    // Enhanced Mode Toggle
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                    ) {
+                        Switch(
+                            checked = enhancedMode,
+                            onCheckedChange = {
+                                enhancedMode = it
+                                addDebugLog("🚀 增强模式: ${if (it) "开启" else "关闭"}")
+                            },
+                            modifier = Modifier.scale(0.8f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "增强模式 (钉钉专用)",
+                            fontSize = 12.sp,
+                            color = if (enhancedMode) Color(0xFF2196F3) else Color.Gray
+                        )
+                    }
                 }
             }
-            
+
             // 地址建议下拉列表 - 悬浮在底部卡片上方
             if (showAddressSuggestions && addressSuggestions.isNotEmpty()) {
                 Card(
@@ -835,6 +861,7 @@ class SimplifiedMainActivity : ComponentActivity() {
     private fun performMockLocation(
         coordinateInput: String,
         baiduMap: BaiduMap?,
+        enhancedMode: Boolean,
         callback: (Boolean, String) -> Unit
     ) {
         try {
@@ -849,15 +876,25 @@ class SimplifiedMainActivity : ComponentActivity() {
 
             addDebugLog("🗺️ 用户输入坐标 (BD09LL): $latitude, $longitude")
 
+            // 验证坐标合理性
+            if (longitude < 70 || longitude > 140 || latitude < 10 || latitude > 60) {
+                addDebugLog("⚠️ 坐标可能超出中国范围，请检查输入")
+            }
+
             // 用户输入的是百度坐标系，需要转换为WGS84用于模拟定位
             val wgs84Coords = CoordinateConverter.bd09ToWgs84(longitude, latitude)
             val wgs84Lng = wgs84Coords.first
             val wgs84Lat = wgs84Coords.second
 
+            // 计算转换偏移量
+            val offsetLng = Math.abs(longitude - wgs84Lng)
+            val offsetLat = Math.abs(latitude - wgs84Lat)
             addDebugLog("📍 转换后坐标 (WGS84): $wgs84Lat, $wgs84Lng")
+            addDebugLog("📏 坐标偏移: 经度${String.format("%.6f", offsetLng)}, 纬度${String.format("%.6f", offsetLat)}")
 
             // 使用WGS84坐标进行模拟定位
-            val result = SimplifiedMockLocationManager.start(this, wgs84Lat, wgs84Lng)
+            addDebugLog("🔧 使用${if (enhancedMode) "增强" else "标准"}模式启动")
+            val result = SimplifiedMockLocationManager.start(this, wgs84Lat, wgs84Lng, enhancedMode)
             when (result) {
                 is MockLocationResult.Success -> {
                     addDebugLog("✅ 模拟定位启动成功")

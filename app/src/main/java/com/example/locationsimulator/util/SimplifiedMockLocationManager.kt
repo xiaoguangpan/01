@@ -28,7 +28,7 @@ object SimplifiedMockLocationManager {
     /**
      * 启动模拟定位
      */
-    fun start(context: Context, latitude: Double, longitude: Double): MockLocationResult {
+    fun start(context: Context, latitude: Double, longitude: Double, enhanced: Boolean = false): MockLocationResult {
         Log.d(TAG, "🚀 启动简化模拟定位")
         Log.d(TAG, "📍 目标坐标: $latitude, $longitude")
         
@@ -43,7 +43,7 @@ object SimplifiedMockLocationManager {
         }
         
         // 尝试标准模拟定位
-        return if (StandardMockLocationManager.start(context, latitude, longitude)) {
+        return if (StandardMockLocationManager.start(context, latitude, longitude, enhanced)) {
             isRunning = true
             currentLatitude = latitude
             currentLongitude = longitude
