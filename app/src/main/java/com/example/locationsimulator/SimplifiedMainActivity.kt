@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material3.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.scale
@@ -91,8 +92,6 @@ class SimplifiedMainActivity : ComponentActivity() {
 
     // Debug logging system
     private val debugLogs = mutableStateListOf<String>()
-    private var infoButtonTapCount = 0
-    private var lastInfoTapTime = 0L
 
     // Activity Result Launcher for favorites
     private val favoriteListLauncher = registerForActivityResult(
@@ -170,38 +169,59 @@ class SimplifiedMainActivity : ComponentActivity() {
             ) {
                 AndroidView(
                     factory = { context ->
-                        MapView(context).apply {
-                            addDebugLog("🗺️ 开始初始化地图...")
-                            mapView = this
-                            this@SimplifiedMainActivity.mapView = this
-                            baiduMap = map.apply {
-                                try {
-                                    addDebugLog("📍 设置地图参数...")
-                                    // 启用定位图层
-                                    isMyLocationEnabled = true
-                                    addDebugLog("✅ 定位图层已启用")
-                                    // 设置地图类型为卫星图（深色主题）
-                                    mapType = BaiduMap.MAP_TYPE_SATELLITE
-                                    addDebugLog("🌙 地图类型设置为卫星图")
-                                    // 设置缩放级别
-                                    setMapStatus(MapStatusUpdateFactory.zoomTo(15f))
-                                    addDebugLog("🔍 地图缩放级别设置为15")
-                                    // 启用缩放控件和指南针
-                                    showZoomControls(false) // 隐藏默认控件，使用自定义UI
-                                    // 设置地图UI设置
-                                    uiSettings.apply {
-                                        isCompassEnabled = false // 使用自定义指南针
-                                        isScrollGesturesEnabled = true
-                                        isZoomGesturesEnabled = true
-                                        isRotateGesturesEnabled = true
-                                        isOverlookingGesturesEnabled = true
+                        try {
+                            addDebugLog("🗺️ 开始创建MapView...")
+                            MapView(context).apply {
+                                addDebugLog("📱 MapView实例创建成功")
+                                mapView = this
+                                this@SimplifiedMainActivity.mapView = this
+
+                                addDebugLog("🔧 开始配置BaiduMap...")
+                                baiduMap = map.apply {
+                                    try {
+                                        addDebugLog("1️⃣ 设置地图基本参数...")
+
+                                        // 启用定位图层
+                                        isMyLocationEnabled = true
+                                        addDebugLog("✅ 定位图层已启用")
+
+                                        // 设置地图类型为卫星图（深色主题）
+                                        mapType = BaiduMap.MAP_TYPE_SATELLITE
+                                        addDebugLog("🌙 地图类型设置为卫星图")
+
+                                        // 设置缩放级别
+                                        setMapStatus(MapStatusUpdateFactory.zoomTo(15f))
+                                        addDebugLog("🔍 地图缩放级别设置为15")
+
+                                        // 隐藏默认控件，使用自定义UI
+                                        showZoomControls(false)
+                                        addDebugLog("🎛️ 默认控件已隐藏")
+
+                                        addDebugLog("2️⃣ 配置地图UI设置...")
+                                        // 设置地图UI设置
+                                        uiSettings.apply {
+                                            isCompassEnabled = false // 使用自定义指南针
+                                            isScrollGesturesEnabled = true
+                                            isZoomGesturesEnabled = true
+                                            isRotateGesturesEnabled = true
+                                            isOverlookingGesturesEnabled = true
+                                        }
+                                        addDebugLog("✅ UI设置配置完成")
+
+                                        addDebugLog("🎉 BaiduMap配置完成")
+
+                                    } catch (e: Exception) {
+                                        addDebugLog("❌ BaiduMap配置失败: ${e.message}")
+                                        Log.e("SimplifiedMainActivity", "BaiduMap配置失败: ${e.message}", e)
                                     }
-                                    addDebugLog("✅ 地图初始化成功 - 深色主题")
-                                } catch (e: Exception) {
-                                    addDebugLog("❌ 地图初始化失败: ${e.message}")
-                                    Log.e("SimplifiedMainActivity", "地图初始化失败: ${e.message}", e)
                                 }
+                                addDebugLog("✅ MapView初始化完成")
                             }
+                        } catch (e: Exception) {
+                            addDebugLog("❌ MapView创建失败: ${e.message}")
+                            Log.e("SimplifiedMainActivity", "MapView创建失败: ${e.message}", e)
+                            // 返回一个空的MapView以避免崩溃
+                            MapView(context)
                         }
                     },
                     modifier = Modifier.fillMaxSize(),
@@ -226,24 +246,7 @@ class SimplifiedMainActivity : ComponentActivity() {
                 ) {
                     // 帮助按钮
                     FloatingActionButton(
-                        onClick = {
-                            val currentTime = System.currentTimeMillis()
-                            if (currentTime - lastInfoTapTime < 1000) { // Within 1 second
-                                infoButtonTapCount++
-                                if (infoButtonTapCount >= 5) {
-                                    showDebugLog = true
-                                    addDebugLog("🔧 调试窗口已激活")
-                                    infoButtonTapCount = 0
-                                }
-                            } else {
-                                infoButtonTapCount = 1
-                            }
-                            lastInfoTapTime = currentTime
-
-                            if (infoButtonTapCount < 5) {
-                                showHelp = true
-                            }
-                        },
+                        onClick = { showHelp = true },
                         modifier = Modifier.size(48.dp),
                         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
                         contentColor = MaterialTheme.colorScheme.onSurface
@@ -251,6 +254,30 @@ class SimplifiedMainActivity : ComponentActivity() {
                         Icon(
                             Icons.Default.Info,
                             contentDescription = "帮助",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // 调试按钮
+                    FloatingActionButton(
+                        onClick = {
+                            showDebugLog = !showDebugLog
+                            if (showDebugLog) {
+                                addDebugLog("🔧 调试面板已打开")
+                            }
+                        },
+                        modifier = Modifier.size(48.dp),
+                        containerColor = if (showDebugLog)
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
+                        else
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                        contentColor = if (showDebugLog) Color.White else Color(0xFF6B7280)
+                    ) {
+                        Icon(
+                            Icons.Default.BugReport,
+                            contentDescription = "调试",
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1169,10 +1196,16 @@ class SimplifiedMainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         try {
+            addDebugLog("🔄 Activity onResume - 开始恢复")
             // 恢复地图
-            mapView?.onResume()
-            Log.d("SimplifiedMainActivity", "Activity onResume - 地图已恢复")
+            mapView?.let { map ->
+                map.onResume()
+                addDebugLog("✅ 地图已恢复")
+            } ?: addDebugLog("⚠️ mapView为null，跳过地图恢复")
+
+            addDebugLog("✅ Activity onResume完成")
         } catch (e: Exception) {
+            addDebugLog("❌ onResume失败: ${e.message}")
             Log.e("SimplifiedMainActivity", "onResume失败: ${e.message}", e)
         }
     }
@@ -1180,26 +1213,45 @@ class SimplifiedMainActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         try {
+            addDebugLog("⏸️ Activity onPause - 开始暂停")
             // 暂停地图
-            mapView?.onPause()
-            Log.d("SimplifiedMainActivity", "Activity onPause - 地图已暂停")
+            mapView?.let { map ->
+                map.onPause()
+                addDebugLog("✅ 地图已暂停")
+            } ?: addDebugLog("⚠️ mapView为null，跳过地图暂停")
+
+            addDebugLog("✅ Activity onPause完成")
         } catch (e: Exception) {
+            addDebugLog("❌ onPause失败: ${e.message}")
             Log.e("SimplifiedMainActivity", "onPause失败: ${e.message}", e)
         }
     }
 
     override fun onDestroy() {
         try {
+            addDebugLog("🗑️ Activity onDestroy - 开始清理资源")
+
             // 清理LocationClient
-            locationClient?.stop()
+            locationClient?.let { client ->
+                client.stop()
+                addDebugLog("✅ LocationClient已停止")
+            }
             locationClient = null
 
             // 清理地图
-            mapView?.onDestroy()
+            mapView?.let { map ->
+                map.onDestroy()
+                addDebugLog("✅ MapView已销毁")
+            }
             mapView = null
 
-            Log.d("SimplifiedMainActivity", "Activity onDestroy - 资源已清理")
+            // 停止模拟定位
+            SimplifiedMockLocationManager.stop()
+            addDebugLog("✅ 模拟定位已停止")
+
+            addDebugLog("✅ Activity onDestroy完成 - 所有资源已清理")
         } catch (e: Exception) {
+            addDebugLog("❌ onDestroy失败: ${e.message}")
             Log.e("SimplifiedMainActivity", "onDestroy失败: ${e.message}", e)
         } finally {
             super.onDestroy()

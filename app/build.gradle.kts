@@ -86,8 +86,10 @@ dependencies {
 
     // 移除了Retrofit依赖，使用百度SDK内置功能
 
-    // 百度地图SDK - 使用JitPack上的版本（解决官方Maven仓库POM问题）
-    implementation("com.github.ipcjs.baidu-map-sdk:g01:g01_3.0.5")
+    // 百度地图SDK - 使用官方最新版本
+    implementation("com.baidu.lbsyun:BaiduMapSDK_Map:7.5.5")
+    implementation("com.baidu.lbsyun:BaiduMapSDK_Search:7.5.5")
+    implementation("com.baidu.lbsyun:BaiduMapSDK_Location:9.6.0")
 
     // Room数据库 - 用于位置收藏功能
     implementation("androidx.room:room-runtime:2.6.1")
