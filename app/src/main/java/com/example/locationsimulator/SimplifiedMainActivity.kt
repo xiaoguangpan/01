@@ -11,6 +11,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
@@ -30,6 +32,15 @@ import androidx.compose.material3.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.ClipboardManager
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import java.text.SimpleDateFormat
+import java.util.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -77,6 +88,11 @@ class SimplifiedMainActivity : ComponentActivity() {
     private var locationClient: LocationClient? = null
     private var mapView: MapView? = null
 
+    // Debug logging system
+    private val debugLogs = mutableStateListOf<String>()
+    private var infoButtonTapCount = 0
+    private var lastInfoTapTime = 0L
+
     // Activity Result Launcher for favorites
     private val favoriteListLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -98,8 +114,10 @@ class SimplifiedMainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         try {
+            addDebugLog("🚀 应用启动中...")
             // 初始化收藏仓库
             favoriteRepository = FavoriteLocationRepository(this)
+            addDebugLog("📚 收藏仓库初始化完成")
 
             setContent {
                 LocationSimulatorTheme {
@@ -116,7 +134,18 @@ class SimplifiedMainActivity : ComponentActivity() {
             finish()
         }
     }
-    
+
+    // Debug logging function
+    private fun addDebugLog(message: String) {
+        val timestamp = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date())
+        val logEntry = "[$timestamp] $message"
+        debugLogs.add(0, logEntry) // Add to beginning for newest first
+        if (debugLogs.size > 100) { // Keep only last 100 logs
+            debugLogs.removeAt(debugLogs.size - 1)
+        }
+        Log.d("SimplifiedMainActivity", message)
+    }
+
     @Composable
     fun MainScreen() {
         val context = LocalContext.current
@@ -130,6 +159,7 @@ class SimplifiedMainActivity : ComponentActivity() {
         var baiduMap by remember { mutableStateOf<BaiduMap?>(null) }
         var showHelp by remember { mutableStateOf(false) }
         var showFavoritesList by remember { mutableStateOf(false) }
+        var showDebugLog by remember { mutableStateOf(false) }
 
         Box(modifier = Modifier.fillMaxSize()) {
             // 全屏地图显示区域
@@ -139,16 +169,21 @@ class SimplifiedMainActivity : ComponentActivity() {
                 AndroidView(
                     factory = { context ->
                         MapView(context).apply {
+                            addDebugLog("🗺️ 开始初始化地图...")
                             mapView = this
                             this@SimplifiedMainActivity.mapView = this
                             baiduMap = map.apply {
                                 try {
+                                    addDebugLog("📍 设置地图参数...")
                                     // 启用定位图层
                                     isMyLocationEnabled = true
+                                    addDebugLog("✅ 定位图层已启用")
                                     // 设置地图类型为卫星图（深色主题）
                                     mapType = BaiduMap.MAP_TYPE_SATELLITE
+                                    addDebugLog("🌙 地图类型设置为卫星图")
                                     // 设置缩放级别
                                     setMapStatus(MapStatusUpdateFactory.zoomTo(15f))
+                                    addDebugLog("🔍 地图缩放级别设置为15")
                                     // 启用缩放控件和指南针
                                     showZoomControls(false) // 隐藏默认控件，使用自定义UI
                                     // 设置地图UI设置
@@ -159,8 +194,9 @@ class SimplifiedMainActivity : ComponentActivity() {
                                         isRotateGesturesEnabled = true
                                         isOverlookingGesturesEnabled = true
                                     }
-                                    Log.d("SimplifiedMainActivity", "地图初始化成功 - 深色主题")
+                                    addDebugLog("✅ 地图初始化成功 - 深色主题")
                                 } catch (e: Exception) {
+                                    addDebugLog("❌ 地图初始化失败: ${e.message}")
                                     Log.e("SimplifiedMainActivity", "地图初始化失败: ${e.message}", e)
                                 }
                             }
@@ -171,7 +207,9 @@ class SimplifiedMainActivity : ComponentActivity() {
                         // 地图更新逻辑
                         try {
                             mapView.onResume()
+                            addDebugLog("🔄 地图更新成功")
                         } catch (e: Exception) {
+                            addDebugLog("❌ 地图更新失败: ${e.message}")
                             Log.e("SimplifiedMainActivity", "地图更新失败: ${e.message}", e)
                         }
                     }
@@ -186,7 +224,24 @@ class SimplifiedMainActivity : ComponentActivity() {
                 ) {
                     // 帮助按钮
                     FloatingActionButton(
-                        onClick = { showHelp = true },
+                        onClick = {
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - lastInfoTapTime < 1000) { // Within 1 second
+                                infoButtonTapCount++
+                                if (infoButtonTapCount >= 5) {
+                                    showDebugLog = true
+                                    addDebugLog("🔧 调试窗口已激活")
+                                    infoButtonTapCount = 0
+                                }
+                            } else {
+                                infoButtonTapCount = 1
+                            }
+                            lastInfoTapTime = currentTime
+
+                            if (infoButtonTapCount < 5) {
+                                showHelp = true
+                            }
+                        },
                         modifier = Modifier.size(48.dp),
                         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
                         contentColor = MaterialTheme.colorScheme.onSurface
@@ -564,9 +619,102 @@ class SimplifiedMainActivity : ComponentActivity() {
                     }
                 )
             }
+
+            // 调试日志窗口
+            if (showDebugLog) {
+                DebugLogWindow(
+                    logs = debugLogs,
+                    onDismiss = { showDebugLog = false },
+                    onClear = { debugLogs.clear() }
+                )
+            }
         }
     }
-    
+
+    @Composable
+    fun DebugLogWindow(
+        logs: List<String>,
+        onDismiss: () -> Unit,
+        onClear: () -> Unit
+    ) {
+        val clipboardManager = LocalClipboardManager.current
+
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("🔧 调试日志", fontWeight = FontWeight.Bold)
+                    Text("${logs.size}/100", fontSize = 12.sp, color = Color.Gray)
+                }
+            },
+            text = {
+                Column {
+                    // 操作按钮
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                val allLogs = logs.joinToString("\n")
+                                clipboardManager.setText(AnnotatedString(allLogs))
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("复制", fontSize = 12.sp)
+                        }
+                        OutlinedButton(
+                            onClick = onClear,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("清空", fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // 日志列表
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(400.dp)
+                            .background(
+                                Color.Black.copy(alpha = 0.05f),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(logs) { log ->
+                            Text(
+                                text = log,
+                                fontSize = 10.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                color = when {
+                                    log.contains("❌") -> Color.Red
+                                    log.contains("✅") -> Color.Green
+                                    log.contains("🔧") -> Color.Blue
+                                    log.contains("📍") -> Color.Magenta
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("关闭")
+                }
+            }
+        )
+    }
+
     @Composable
     fun HelpDialog(
         onDismiss: () -> Unit,
@@ -699,24 +847,26 @@ class SimplifiedMainActivity : ComponentActivity() {
             val longitude = parts[0].trim().toDouble()
             val latitude = parts[1].trim().toDouble()
 
-            Log.d("SimplifiedMainActivity", "🗺️ 用户输入坐标 (BD09LL): $latitude, $longitude")
+            addDebugLog("🗺️ 用户输入坐标 (BD09LL): $latitude, $longitude")
 
             // 用户输入的是百度坐标系，需要转换为WGS84用于模拟定位
             val wgs84Coords = CoordinateConverter.bd09ToWgs84(longitude, latitude)
             val wgs84Lng = wgs84Coords.first
             val wgs84Lat = wgs84Coords.second
 
-            Log.d("SimplifiedMainActivity", "📍 转换后坐标 (WGS84): $wgs84Lat, $wgs84Lng")
+            addDebugLog("📍 转换后坐标 (WGS84): $wgs84Lat, $wgs84Lng")
 
             // 使用WGS84坐标进行模拟定位
             val result = SimplifiedMockLocationManager.start(this, wgs84Lat, wgs84Lng)
             when (result) {
                 is MockLocationResult.Success -> {
+                    addDebugLog("✅ 模拟定位启动成功")
                     // 地图显示仍使用百度坐标系
                     updateMapLocation(coordinateInput, baiduMap)
                     callback(true, "模拟定位已启动 (坐标已转换)")
                 }
                 is MockLocationResult.Failure -> {
+                    addDebugLog("❌ 模拟定位启动失败: ${result.error}")
                     callback(false, result.error)
                 }
             }
